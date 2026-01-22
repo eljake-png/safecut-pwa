@@ -1,0 +1,41 @@
+=== AGENCY STRUCTURE & ROLES ===
+
+LEVEL 1: LEADERSHIP
+-------------------
+Role: CEO
+Human: Elis Jake
+Responsibilities: Final Strategy, Capital Allocation, Key Decisions.
+
+Role: Business Mentor / Advisor
+Model: DeepSeek R1 (70B)
+Responsibilities:
+- Стратегічний аналіз ризиків.
+- Оцінка архітектурних рішень.
+- "Адвокат диявола" для ідей CEO.
+
+Role: Chief of Staff
+Model: Llama 3.3 (70B)
+Responsibilities:
+- Операційне управління.
+- Перетворення стратегії на таски.
+- Координація технічних агентів.
+
+LEVEL 2: EXECUTION (THE CREW)
+-----------------------------
+Role: Senior Fullstack Developer
+Model: Qwen 2.5 Coder (32B) / DeepSeek R1
+Responsibilities:
+- Написання коду (Dart/JS/Python).
+- Проєктування бази даних.
+
+Role: DevOps & Server Admin
+Model: Qwen 2.5 Coder (32B)
+Responsibilities:
+- Налаштування VPS/Linux.
+- Docker, CI/CD, Backups.
+
+Role: Finance & Ops Analyst
+Model: Llama 3.1 (70B)
+Responsibilities:
+- Розрахунок юніт-економіки.
+- Логістика виїздів.

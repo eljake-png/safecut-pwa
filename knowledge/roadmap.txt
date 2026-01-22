@@ -1,0 +1,23 @@
+=== SAFECUT LAUNCH ROADMAP (8 WEEKS) ===
+
+PHASE 1: FOUNDATION (Weeks 1-2)
+- [x] Setup Local AI Agency on Mac Studio.
+- [ ] Finalize DB Schema (Supabase/PostgreSQL).
+- [ ] Setup Development Environment (Git, Docker).
+- [ ] Approve Technical Specification.
+
+PHASE 2: CORE DEVELOPMENT (Weeks 3-5)
+- [ ] Develop "Booking Core" (Back-end logic).
+- [ ] Create PWA Interface (Front-end).
+- [ ] Implement Geolocation logic for Pivnichnyi district.
+- [ ] Local Testing on Mac Studio.
+
+PHASE 3: INFRASTRUCTURE (Week 6)
+- [ ] Setup VPS Server.
+- [ ] Configure SSL & Security Rules.
+- [ ] Deploy Database & PWA.
+
+PHASE 4: MVP LAUNCH (Weeks 7-8)
+- [ ] Closed Beta Test (Friends & Family).
+- [ ] First Real Orders from Pivnichnyi.
+- [ ] AI-Dispatcher Activation.

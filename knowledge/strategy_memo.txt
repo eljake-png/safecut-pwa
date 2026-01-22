@@ -1,0 +1,21 @@
+=== SAFECUT STRATEGY MEMO (2026) ===
+
+PROJECT: Safecut
+LOCATION: Rivne, Pivnichnyi District
+CEO: Elis Jake
+
+1. VISION
+Побудова автономного сервісу "віртуальний барбершоп" з виїздом майстра додому.
+Ми відмовляємося від класичних барбершопів (оренда приміщень) на користь мобільності та преміум-сервісу вдома у клієнта.
+
+2. INDEPENDENCE & TECH STACK
+Ми відмовляємося від FlutterFlow та платних підписок.
+- Frontend: PWA (Progressive Web App) на чистому Flutter або Next.js.
+- Backend: Власний сервер (VPS) або локальний хостинг.
+- Database: Supabase або PostgreSQL (Self-hosted).
+- AI Architecture: Локальні агенти на Mac Studio M3 Ultra.
+
+3. CORE VALUES
+- Privacy: Дані клієнтів (адреси, телефони) зберігаються на зашифрованому власному сервері.
+- Autonomy: Бізнес-процеси (запис, логістика, каса) керуються AI-агентами.
+- Scalability: Модель "Північний" має бути тестовим полігоном перед масштабуванням на все місто.
