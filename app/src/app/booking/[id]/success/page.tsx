@@ -1,23 +1,36 @@
 'use client';
 
 import { use, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function SuccessPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  
-  // Виправляємо помилку Hydration:
-  // Спочатку номер пустий, генеруємо його тільки після завантаження
+  const router = useRouter();
   const [orderNum, setOrderNum] = useState<string>('...');
 
+  // 1. ГЕНЕРАЦІЯ ID
   useEffect(() => {
-    // Цей код виконається тільки в браузері
     setOrderNum(Math.floor(Math.random() * 10000).toString());
+    // Очистка статусу при вході
+    localStorage.removeItem('order_status_SC-8821');
   }, []);
+
+  // 2. СЛУХАЧ ЗАВЕРШЕННЯ (Магія залишається працювати у фоні)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const status = localStorage.getItem('order_status_SC-8821');
+      if (status === 'completed') {
+        router.push(`/booking/${id}/review`);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [id, router]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white font-sans flex flex-col items-center justify-center p-6 text-center">
       
-      {/* Жовтий статус */}
+      {/* Жовтий статус (Очікування) */}
       <div className="w-24 h-24 bg-yellow-500/10 rounded-full flex items-center justify-center mb-8 border border-yellow-500/20 animate-pulse">
         <span className="text-5xl">⏳</span>
       </div>
@@ -40,9 +53,9 @@ export default function SuccessPage({ params }: { params: Promise<{ id: string }
         </p>
       </div>
 
-      {/* Кнопка */}
+      {/* Кнопка "Написати барберу" */}
       <button 
-        onClick={() => alert('Відкриваємо зашифрований чат з барбером...')}
+        onClick={() => alert('Відкриваємо зашифрований чат...')} // Тут пізніше можна поставити реальний лінк на чат
         className="w-full max-w-xs bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-900/20 flex items-center justify-center gap-3 transition-transform active:scale-95"
       >
         <span>💬</span>

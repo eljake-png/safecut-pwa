@@ -8,7 +8,6 @@ export default function BarberChatPage() {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Стан повідомлень
   const [messages, setMessages] = useState([
     { id: 1, sender: 'system', text: '🔒 Цей чат захищено наскрізним шифруванням.' },
     { id: 2, sender: 'system', text: '✅ Ви прийняли замовлення. Клієнт отримав сповіщення.' },
@@ -16,7 +15,6 @@ export default function BarberChatPage() {
 
   const [inputText, setInputText] = useState('');
 
-  // Авто-скрол до низу
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -25,9 +23,7 @@ export default function BarberChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Імітація відповіді клієнта (щоб було весело тестувати)
   useEffect(() => {
-    // Через 3 секунди клієнт "пише" адресу
     const timer = setTimeout(() => {
       setMessages(prev => [
         ...prev, 
@@ -39,16 +35,13 @@ export default function BarberChatPage() {
 
   const handleSend = () => {
     if (!inputText.trim()) return;
-    
-    // Додаємо повідомлення барбера
     setMessages([...messages, { id: Date.now(), sender: 'me', text: inputText }]);
     setInputText('');
   };
 
-  const handleCompleteOrder = () => {
-    if(confirm('Клієнта пострижено? Завершуємо замовлення?')) {
-        router.push('/barber/dashboard');
-    }
+  const handleStartSession = () => {
+    // Перехід на екран сесії (таймер + SOS)
+    router.push('/barber/session/SC-8821');
   };
 
   return (
@@ -68,12 +61,12 @@ export default function BarberChatPage() {
           <span className="text-[10px] text-zinc-500 uppercase tracking-widest">Encrypted Connection</span>
         </div>
 
-        {/* Кнопка завершення прямо в хедері (зручно) */}
+        {/* Кнопка ПОЧАТИ */}
         <button 
-            onClick={handleCompleteOrder}
-            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-green-500 px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors"
+            onClick={handleStartSession}
+            className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg shadow-blue-900/20 transition-colors flex items-center gap-1"
         >
-          ✓ Готово
+          ✂️ Почати
         </button>
       </div>
 
@@ -89,7 +82,6 @@ export default function BarberChatPage() {
               </div>
             );
           }
-          
           const isMe = msg.sender === 'me';
           return (
             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -128,7 +120,6 @@ export default function BarberChatPage() {
           </button>
         </div>
       </div>
-
     </div>
   );
 }
