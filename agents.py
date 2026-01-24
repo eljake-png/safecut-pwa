@@ -1,39 +1,36 @@
 from crewai import Agent, LLM
-from crewai_tools import FileReadTool, FileWriterTool
 
-# --- ІНСТРУМЕНТИ ---
-file_read_tool = FileReadTool()
-file_write_tool = FileWriterTool()
+# --- CONFIGURATION (M3 Ultra) ---
 
-# --- КОНФІГУРАЦІЯ МОДЕЛЕЙ (OLLAMA LOCAL) ---
-mentor_llm = LLM(model="ollama/deepseek-r1:70b", base_url="http://localhost:11434")
-cos_llm = LLM(model="ollama/llama3.3:70b", base_url="http://localhost:11434")
-dev_llm = LLM(model="ollama/qwen2.5-coder:32b", base_url="http://localhost:11434")
-
-# --- АГЕНТИ ---
-
-mentor = Agent(
-    role='Safecut Strategic Advisor',
-    goal='Аналізувати бізнес-логіку та валідувати рішення CEO.',
-    backstory='Стратег, який бачить ризики наперед.',
-    llm=mentor_llm,
-    verbose=True
+# DeepSeek R1 - Найкращий для складних скриптів
+sysadmin_model = LLM(
+    model="ollama/deepseek-r1:70b", 
+    base_url="http://localhost:11434",
+    temperature=0.1
 )
 
-chief_of_staff = Agent(
-    role='Chief of Staff',
-    goal='Координувати роботу та ставити чіткі ТЗ.',
-    backstory='Менеджер проєктів, права рука CEO.',
-    llm=cos_llm,
-    verbose=True
+# Qwen Coder - Найкращий для React/Next.js
+coder_model = LLM(
+    model="ollama/qwen2.5-coder:32b", 
+    base_url="http://localhost:11434",
+    temperature=0.2
 )
 
-developer = Agent(
-    role='Senior Fullstack Developer',
-    goal='Писати реальний код у файли. Читати вимоги з файлів.',
-    backstory='Інженер, який вміє працювати з файловою системою.',
-    llm=dev_llm,
-    verbose=True,
-    tools=[file_read_tool, file_write_tool], # <--- ТЕПЕР ВІН МАЄ РУКИ
-    allow_delegation=False
-)
+class WindowsDevTeam:
+    def windows_sysadmin(self):
+        return Agent(
+            role='Windows Server Administrator',
+            goal='Автоматизувати розгортання Node.js серверу на Windows 10/11 без Docker Desktop.',
+            backstory='Ти гуру PowerShell. Ти знаєш, що Docker на Windows може їсти багато RAM, тому ти віддаєш перевагу нативному запуску Node.js через PM2 або просто через консоль. Ти знаєш команду `winget` і вмієш налаштовувати Cloudflare Tunnel на Windows.',
+            llm=sysadmin_model,
+            verbose=True
+        )
+
+    def fullstack_dev(self):
+        return Agent(
+            role='Senior React Developer',
+            goal='Створити фінальну сторінку MVP з підключенням гаманця.',
+            backstory='Ти поєднуєш красивий UI (Tailwind) з логікою Web3 (Wagmi). Твоя задача - видати готовий код сторінки, де користувач бачить свій баланс і кнопку "Оплатити".',
+            llm=coder_model,
+            verbose=True
+        )

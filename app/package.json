@@ -9,11 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.10",
+    "@tanstack/react-query": "^5.90.20",
     "formik": "^2.4.9",
     "lucide-react": "^0.563.0",
     "next": "16.1.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "viem": "^2.44.4",
+    "wagmi": "^3.4.1",
     "yup": "^1.7.1"
   },
   "devDependencies": {
