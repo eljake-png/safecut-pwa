@@ -4,7 +4,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useSecureChat } from '@/hooks/useSecureChat';
 import { db } from '@/lib/firebase';
-// Додаємо getDoc для отримання даних клієнта
 import { collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export default function BarberChatPage() {
@@ -49,7 +48,7 @@ export default function BarberChatPage() {
     initChat();
   }, [id]);
 
-  // 2. LISTEN FOR CLIENT KEY & FETCH CLIENT INFO
+  // 2. LISTEN FOR CLIENT KEY & FORCE FETCH CLIENT INFO
   useEffect(() => {
     if (!privateKey) return;
     
@@ -57,27 +56,30 @@ export default function BarberChatPage() {
       if (docSnap.exists()) {
         const data = docSnap.data();
 
-        // --- ВИПРАВЛЕНА ЛОГІКА ОТРИМАННЯ НІКНЕЙМУ ---
-        // 1. Спробуємо взяти збережений нікнейм
-        if (data.clientNickname) {
-           setClientNickname(data.clientNickname);
-        } 
-        // 2. Якщо його немає, але є ID клієнта - тягнемо з бази clients
-        else if (data.clientId) {
+        // --- ВИПРАВЛЕННЯ ТУТ ---
+        // Ми завжди намагаємось дістати свіжі дані з профілю, ігноруючи старий запис "Гість" в замовленні
+        if (data.clientId && data.clientId !== 'temp_user_id') {
            try {
              const clientSnap = await getDoc(doc(db, 'clients', data.clientId));
              if (clientSnap.exists()) {
                 const clientData = clientSnap.data();
-                setClientNickname(clientData.nickname || clientData.fullName || 'Клієнт');
+                // Пріоритет: Nickname -> FullName -> ClientID
+                const realName = clientData.nickname || clientData.fullName || data.clientId;
+                setClientNickname(realName);
              } else {
-                // Якщо не знайшли профіль, показуємо хоча б ID
-                setClientNickname(data.clientId === 'temp_user_id' ? 'Гість' : data.clientId);
+                // Якщо профілю немає, але ID схожий на нікнейм (наприклад tester_client01) - показуємо його
+                setClientNickname(data.clientId);
              }
            } catch (e) {
              console.error("Error fetching client details:", e);
+             // Фолбек на дані з замовлення
+             setClientNickname(data.clientNickname || 'Клієнт');
            }
+        } else {
+           // Якщо ID немає або він тимчасовий - тоді вже беремо те, що записано в замовленні
+           setClientNickname(data.clientNickname || 'Гість');
         }
-        // ---------------------------------------------
+        // -----------------------
 
         if (data.clientPublicKey && !sharedKey) {
           const remoteKey = await importPublicKey(data.clientPublicKey);
@@ -155,8 +157,7 @@ export default function BarberChatPage() {
         
         <div className="flex items-center gap-3 flex-1">
            <div className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center font-bold text-sm border border-zinc-700 text-zinc-400 overflow-hidden">
-             {/* Показуємо першу літеру або '?' */}
-             {clientNickname !== '...' ? clientNickname.charAt(0).toUpperCase() : '?'}
+             {clientNickname !== '...' && clientNickname !== 'Гість' ? clientNickname.charAt(0).toUpperCase() : '?'}
            </div>
            <div>
              <h2 className="font-bold text-sm">@{clientNickname}</h2>
