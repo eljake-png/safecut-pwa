@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
+// Додаємо doc та getDoc для отримання даних клієнта перед записом
+import { addDoc, collection, doc, getDoc } from 'firebase/firestore'; 
+import { db } from '@/lib/firebase'; 
 
 export default function ServicesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -16,6 +19,7 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
   ]);
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'crypto'>('cash');
+  const [isProcessing, setIsProcessing] = useState(false); // Щоб не натиснули двічі
 
   const toggleService = (serviceId: string) => {
     setServices(services.map(s => {
@@ -28,13 +32,76 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
 
   const totalPrice = services.reduce((acc, s) => s.selected ? acc + s.price : acc, 0);
 
-  const handleNext = () => {
-    console.log({ id, services, paymentMethod, totalPrice });
+  // --- ОНОВЛЕНА ФУНКЦІЯ handleNext ---
+  const handleNext = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
 
-    if (paymentMethod === 'crypto') {
-      router.push(`/booking/${id}/crypto?amount=${totalPrice}`);
-    } else {
-      router.push(`/booking/${id}/success`);
+    // 1. Читаємо збережені дату і час чернетки
+    const savedData = localStorage.getItem('safecut_draft');
+    
+    if (!savedData) {
+      alert("Помилка: Не обрано час візиту. Поверніться назад.");
+      setIsProcessing(false);
+      return;
+    }
+
+    const { date, time, barberName } = JSON.parse(savedData);
+
+    // 2. ОТРИМУЄМО РЕАЛЬНОГО КЛІЄНТА
+    // Припускаємо, що при логіні ми зберегли ID в localStorage під ключем 'clientId' або 'userId'
+    // Якщо немає - використовуємо 'tester_client01' як фолбек для тестів
+    const currentClientId = localStorage.getItem('clientId') || 'tester_client01';
+    let clientNickname = 'Гість';
+
+    try {
+        // Пробуємо дістати нікнейм з бази, щоб зберегти його в замовленні
+        // Це важливо для швидкодії Dashboard барбера
+        const clientDoc = await getDoc(doc(db, 'clients', currentClientId));
+        if (clientDoc.exists()) {
+            const data = clientDoc.data();
+            clientNickname = data.nickname || data.fullName || 'Клієнт';
+        }
+    } catch (error) {
+        console.log("Не вдалося отримати профіль клієнта, використовуємо дефолтний");
+    }
+
+    // 3. Формуємо об'єкт для бази даних
+    const orderData = {
+        barberId: id,
+        barberName: barberName,
+        
+        // ВАЖЛИВІ ВИПРАВЛЕННЯ:
+        clientId: currentClientId, // Реальний ID
+        clientNickname: clientNickname, // Реальний нікнейм (snapshot)
+        
+        date: date,
+        time: time,
+        services: services.filter(s => s.selected),
+        totalPrice: totalPrice,
+        paymentMethod: paymentMethod,
+        status: 'pending',
+        createdAt: new Date(),
+    };
+
+    try {
+        // 4. Відправляємо в Firebase
+        const docRef = await addDoc(collection(db, 'bookings'), orderData);
+        
+        localStorage.setItem(`order_status_${docRef.id}`, 'pending');
+        localStorage.removeItem('safecut_draft');
+
+        console.log("Order created with ID: ", docRef.id);
+
+        if (paymentMethod === 'crypto') {
+          router.push(`/booking/${id}/crypto?amount=${totalPrice}&orderId=${docRef.id}`);
+        } else {
+          router.push(`/booking/${id}/success?orderId=${docRef.id}`); 
+        }
+    } catch (e) {
+        console.error("Error creating order:", e);
+        alert("Щось пішло не так при створенні замовлення");
+        setIsProcessing(false);
     }
   };
 
@@ -119,9 +186,10 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
           
           <button 
             onClick={handleNext}
-            className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
+            disabled={isProcessing}
+            className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center"
           >
-            {paymentMethod === 'crypto' ? 'ОПЛАТИТИ USDT' : 'ЗАМОВИТИ'}
+            {isProcessing ? 'Обробка...' : (paymentMethod === 'crypto' ? 'ОПЛАТИТИ USDT' : 'ЗАМОВИТИ')}
           </button>
         </div>
       </div>

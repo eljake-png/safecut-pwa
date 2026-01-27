@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 export const useSecureChat = () => {
   // 1. ГЕНЕРАЦІЯ ПАРИ КЛЮЧІВ (ECDH P-256)
   const generateKeyPair = async () => {
-    const keyPair = await window.crypto.subtle.generateKey(
+    return await window.crypto.subtle.generateKey(
       {
         name: "ECDH",
         namedCurve: "P-256",
@@ -11,11 +11,9 @@ export const useSecureChat = () => {
       true,
       ["deriveKey", "deriveBits"]
     );
-    return keyPair;
   };
 
-  // 2. СТВОРЕННЯ СПІЛЬНОГО СЕКРЕТУ (AES-GCM)
-  // Це магія: беремо свій приватний + чужий публічний = однаковий секрет у обох
+  // 2. СПІЛЬНИЙ СЕКРЕТ
   const deriveSharedKey = async (privateKey: CryptoKey, remotePublicKey: CryptoKey) => {
     return await window.crypto.subtle.deriveKey(
       {
@@ -32,22 +30,17 @@ export const useSecureChat = () => {
     );
   };
 
-  // 3. ШИФРУВАННЯ (AES-GCM + IV)
+  // 3. ШИФРУВАННЯ
   const encryptMessage = async (text: string, sharedKey: CryptoKey) => {
     const encodedText = new TextEncoder().encode(text);
-    // IV (Initialization Vector) - випадковий шум, щоб однакові фрази виглядали по-різному
     const iv = window.crypto.getRandomValues(new Uint8Array(12)); 
     
     const encryptedBuffer = await window.crypto.subtle.encrypt(
-      {
-        name: "AES-GCM",
-        iv: iv,
-      },
+      { name: "AES-GCM", iv: iv },
       sharedKey,
       encodedText
     );
 
-    // Пакуємо IV + Шифротекст в один рядок Base64 для відправки
     const encryptedArray = new Uint8Array(encryptedBuffer);
     const combined = new Uint8Array(iv.length + encryptedArray.length);
     combined.set(iv);
@@ -64,51 +57,62 @@ export const useSecureChat = () => {
       const data = combined.slice(12);
 
       const decryptedBuffer = await window.crypto.subtle.decrypt(
-        {
-          name: "AES-GCM",
-          iv: iv,
-        },
+        { name: "AES-GCM", iv: iv },
         sharedKey,
         data
       );
 
       return new TextDecoder().decode(decryptedBuffer);
     } catch (e) {
-      console.error("Помилка дешифрування (можливо, невірний ключ):", e);
-      return "🔒 Повідомлення не вдалося розшифрувати";
+      console.error("Decryption failed:", e);
+      // Повертаємо null або спеціальний текст, щоб UI не падав
+      throw e; 
     }
   };
 
-  // --- ДОПОМІЖНІ ФУНКЦІЇ (Для Firebase) ---
+  // --- HELPER FUNCTIONS ---
 
-  // Експорт ключа в рядок (щоб відправити через інтернет)
-  const exportPublicKey = async (key: CryptoKey): Promise<string> => {
-    const exported = await window.crypto.subtle.exportKey("spki", key);
-    return arrayBufferToBase64(new Uint8Array(exported));
+  // Експорт будь-якого ключа в JSON (JWK) для збереження в LocalStorage
+  const exportKeyToJWK = async (key: CryptoKey): Promise<JsonWebKey> => {
+    return await window.crypto.subtle.exportKey("jwk", key);
   };
 
-  // Імпорт ключа з рядка (коли отримали від співрозмовника)
-  const importPublicKey = async (base64Key: string): Promise<CryptoKey> => {
-    const buffer = base64ToArrayBuffer(base64Key);
+  // Імпорт будь-якого ключа з JSON (JWK)
+  const importKeyFromJWK = async (jwk: JsonWebKey, type: 'public' | 'private'): Promise<CryptoKey> => {
     return await window.crypto.subtle.importKey(
-      "spki",
-      buffer,
+      "jwk",
+      jwk,
       {
         name: "ECDH",
         namedCurve: "P-256",
       },
       true,
+      type === 'private' ? ["deriveKey", "deriveBits"] : []
+    );
+  };
+
+  // Експорт публічного ключа для передачі мережею (SPKI)
+  const exportPublicKey = async (key: CryptoKey): Promise<string> => {
+    const exported = await window.crypto.subtle.exportKey("spki", key);
+    return arrayBufferToBase64(new Uint8Array(exported));
+  };
+
+  // Імпорт публічного ключа з мережі (SPKI)
+  const importPublicKey = async (base64Key: string): Promise<CryptoKey> => {
+    const buffer = base64ToArrayBuffer(base64Key);
+    return await window.crypto.subtle.importKey(
+      "spki",
+      buffer,
+      { name: "ECDH", namedCurve: "P-256" },
+      true,
       []
     );
   };
 
-  // Helpers for Base64 conversion
   const arrayBufferToBase64 = (buffer: Uint8Array): string => {
     let binary = '';
     const len = buffer.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(buffer[i]);
-    }
+    for (let i = 0; i < len; i++) binary += String.fromCharCode(buffer[i]);
     return window.btoa(binary);
   };
 
@@ -116,9 +120,7 @@ export const useSecureChat = () => {
     const binary_string = window.atob(base64);
     const len = binary_string.length;
     const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary_string.charCodeAt(i);
-    }
+    for (let i = 0; i < len; i++) bytes[i] = binary_string.charCodeAt(i);
     return bytes;
   };
 
@@ -128,6 +130,8 @@ export const useSecureChat = () => {
     encryptMessage,
     decryptMessage,
     exportPublicKey,
-    importPublicKey
+    importPublicKey,
+    exportKeyToJWK,   // Нове
+    importKeyFromJWK  // Нове
   };
 };

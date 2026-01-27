@@ -3,62 +3,98 @@
 import Link from 'next/link';
 import { useState, use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+
+// Стандартні робочі години (можна винести в конфиг)
+const RAW_SLOTS = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
 
 export default function BookingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   
-  const barbersDB: { [key: string]: string } = {
-    '1': 'Іван',
-    '2': 'Максим'
-  };
-  const barberName = barbersDB[id] || 'Майстер';
-
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  // Стейт для барбера і слотів
+  const [barberName, setBarberName] = useState('Майстер');
+  const [loadingData, setLoadingData] = useState(true);
   
-  // Базові слоти (у реальності приходять з БД)
-  // isBooked: true імітує, що хтось вже зайняв цей час
-  const baseSlots = [
-    { time: '10:00', isBooked: false },
-    { time: '12:00', isBooked: false },
-    { time: '14:00', isBooked: true }, // Зайнято іншим клієнтом
-    { time: '16:00', isBooked: false },
-    { time: '18:00', isBooked: false },
-    { time: '20:00', isBooked: false }
-  ];
-
-  const [timeSlots, setTimeSlots] = useState(baseSlots.map(s => ({ ...s, isDisabled: s.isBooked })));
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [takenSlots, setTakenSlots] = useState<string[]>([]); // Зайняті години з бази
+  
+  const [timeSlots, setTimeSlots] = useState(RAW_SLOTS.map(time => ({ time, isDisabled: false })));
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
 
-  // --- ЛОГІКА ЧАСУ (ВИПРАВЛЕНО) ---
+  // 1. ЗАВАНТАЖУЄМО БАРБЕРА
+  useEffect(() => {
+    const fetchBarber = async () => {
+      try {
+        const docRef = doc(db, 'barbers', id);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          // Пріоритет: fullName -> nickname -> 'Майстер'
+          setBarberName(data.fullName || data.nickname || 'Майстер');
+        }
+      } catch (e) {
+        console.error("Error fetching barber", e);
+      }
+    };
+    fetchBarber();
+  }, [id]);
+
+  // 2. ЗАВАНТАЖУЄМО ЗАЙНЯТІ ГОДИНИ ПРИ ЗМІНІ ДАТИ
+  useEffect(() => {
+    const fetchBookings = async () => {
+      setLoadingData(true);
+      try {
+        // Форматуємо дату у стрічку YYYY-MM-DD для пошуку в базі
+        // (Важливо: при збереженні замовлення ми будемо використовувати цей же формат)
+        const dateString = selectedDate.toLocaleDateString('uk-UA'); 
+
+        const q = query(
+          collection(db, 'bookings'),
+          where('barberId', '==', id),
+          where('date', '==', dateString)
+        );
+
+        const querySnapshot = await getDocs(q);
+        const bookedTimes = querySnapshot.docs.map(doc => doc.data().time);
+        setTakenSlots(bookedTimes);
+      } catch (error) {
+        console.error("Error fetching slots:", error);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchBookings();
+    setSelectedTimeSlot(null); // Скидаємо вибір часу при зміні дати
+  }, [selectedDate, id]);
+
+  // 3. ЛОГІКА БЛОКУВАННЯ (Минулий час + Зайнято в базі)
   useEffect(() => {
     const now = new Date();
     const isToday = selectedDate.toDateString() === now.toDateString();
     const currentHour = now.getHours();
 
-    const updatedSlots = baseSlots.map(slot => {
-      // 1. Якщо вже зайнято в базі — блокуємо
-      if (slot.isBooked) return { ...slot, isDisabled: true };
+    const updatedSlots = RAW_SLOTS.map(time => {
+      // А. Перевірка бази (чи зайнято кимось іншим)
+      const isTakenInDb = takenSlots.includes(time);
+      if (isTakenInDb) return { time, isDisabled: true };
 
-      // 2. Якщо це сьогодні і час вже минув — блокуємо
+      // Б. Перевірка минулого часу (якщо сьогодні)
       if (isToday) {
-        const slotHour = parseInt(slot.time.split(':')[0], 10);
-        // Якщо слот менше або дорівнює поточній годині (наприклад, зараз 12:15, то слот 12:00 вже недоступний)
+        const slotHour = parseInt(time.split(':')[0], 10);
         if (slotHour <= currentHour) {
-          return { ...slot, isDisabled: true };
+          return { time, isDisabled: true };
         }
       }
 
-      // Інакше доступно
-      return { ...slot, isDisabled: false };
+      // Доступно
+      return { time, isDisabled: false };
     });
 
     setTimeSlots(updatedSlots);
-    
-    // Якщо ми змінили дату і обраний раніше час став недоступним — скидаємо вибір
-    setSelectedTimeSlot(null);
-
-  }, [selectedDate]); // Перераховуємо при зміні дати
+  }, [selectedDate, takenSlots]); 
 
   const daysOfWeek = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
   
@@ -73,6 +109,17 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   };
 
   const handleNext = () => {
+    // ЗБЕРІГАЄМО В ПАМ'ЯТЬ ДЛЯ НАСТУПНОГО КРОКУ
+    const draftData = {
+        barberId: id,
+        barberName: barberName,
+        date: selectedDate.toLocaleDateString('uk-UA'), // Формат: дд.мм.рррр
+        time: selectedTimeSlot,
+        timestamp: selectedDate.toISOString() // Для сортування, якщо треба
+    };
+    
+    localStorage.setItem('safecut_draft', JSON.stringify(draftData));
+    
     // Перехід на Екран 3 (Послуги)
     router.push(`/booking/${id}/services`);
   };
@@ -122,7 +169,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
         {/* Time Slots Grid */}
         <div>
           <h2 className="text-sm font-medium text-zinc-500 mb-4 uppercase tracking-wider">Обери час</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid grid-cols-3 gap-3 ${loadingData ? 'opacity-50' : 'opacity-100'} transition-opacity`}>
             {timeSlots.map((slot, index) => (
               <button
                 key={index}
