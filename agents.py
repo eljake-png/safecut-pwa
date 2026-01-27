@@ -1,36 +1,45 @@
-from crewai import Agent, LLM
+from crewai import Agent
+from crewai_tools import DirectoryReadTool, FileReadTool
 
-# --- CONFIGURATION (M3 Ultra) ---
+# Очі для наших агентів
+docs_tool = DirectoryReadTool(directory='./src')
+file_tool = FileReadTool()
 
-# DeepSeek R1 - Найкращий для складних скриптів
-sysadmin_model = LLM(
-    model="ollama/deepseek-r1:70b", 
-    base_url="http://localhost:11434",
-    temperature=0.1
+# 1. Архітектор (Devstral-2) - логіка та структура
+architect = Agent(
+    role='System Architect',
+    goal='Проектування надійної архітектури лояльності для PWA',
+    backstory='Ти спеціалізуєшся на складних системах. Твоє завдання — розробити зв’язок між Firebase та Next.js для системи 10-ї безкоштовної стрижки.',
+    tools=[docs_tool, file_tool],
+    llm='ollama/devstral-2:latest',
+    verbose=True
 )
 
-# Qwen Coder - Найкращий для React/Next.js
-coder_model = LLM(
-    model="ollama/qwen2.5-coder:32b", 
-    base_url="http://localhost:11434",
-    temperature=0.2
+# 2. Девелопер (Qwen 2.5 Coder) - написання коду
+developer = Agent(
+    role='Senior Fullstack Developer',
+    goal='Реалізація логіки лічильника та UI компонентів',
+    backstory='Найшвидші руки на Північному. Ти пишеш чистий TSX/Tailwind код. Працюєш у тандемі з тестувальником.',
+    tools=[docs_tool, file_tool],
+    llm='ollama/qwen2.5-coder:32b',
+    verbose=True
 )
 
-class WindowsDevTeam:
-    def windows_sysadmin(self):
-        return Agent(
-            role='Windows Server Administrator',
-            goal='Автоматизувати розгортання Node.js серверу на Windows 10/11 без Docker Desktop.',
-            backstory='Ти гуру PowerShell. Ти знаєш, що Docker на Windows може їсти багато RAM, тому ти віддаєш перевагу нативному запуску Node.js через PM2 або просто через консоль. Ти знаєш команду `winget` і вмієш налаштовувати Cloudflare Tunnel на Windows.',
-            llm=sysadmin_model,
-            verbose=True
-        )
+# 3. Тестувальник (Gemma 3) - експерт Google/Firebase
+tester = Agent(
+    role='Firebase & QA Specialist',
+    goal='Верифікація безпеки записів у БД та цілісності Firebase Schema',
+    backstory='Ти виросла в Google, тому знаєш Firestore як свої п’ять пальців. Твоя мета — знайти баги в логіці девелопера.',
+    tools=[docs_tool, file_tool],
+    llm='ollama/gemma3:27b',
+    verbose=True
+)
 
-    def fullstack_dev(self):
-        return Agent(
-            role='Senior React Developer',
-            goal='Створити фінальну сторінку MVP з підключенням гаманця.',
-            backstory='Ти поєднуєш красивий UI (Tailwind) з логікою Web3 (Wagmi). Твоя задача - видати готовий код сторінки, де користувач бачить свій баланс і кнопку "Оплатити".',
-            llm=coder_model,
-            verbose=True
-        )
+# 4. Бізнес Ментор (Mistral Large 123b) - стратегія та звіти
+mentor = Agent(
+    role='Strategic Business Mentor',
+    goal='Аналіз Retention та формування фінального рапорту проекту',
+    backstory='Ти бачиш цифри крізь код. Твоє завдання — переконатися, що фіча принесе гроші, і зібрати роботу всіх агентів у звіт.',
+    llm='ollama/mistral-large:123b',
+    verbose=True
+)

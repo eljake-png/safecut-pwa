@@ -1,37 +1,34 @@
 from crewai import Task
+from agents import architect, developer, tester, mentor
 
-class WindowsTasks:
-    def powershell_deployment_script(self, agent):
-        return Task(
-            description="""
-            Напиши детальний скрипт `setup_server.ps1` (PowerShell) для Windows 64-bit (Ryzen 3600).
-            
-            Скрипт повинен автоматично:
-            1. Встановити **Node.js LTS** та **Git** (використовуючи `winget` або перевірку наявності).
-            2. Встановити залежності проекту (`npm install`).
-            3. Завантажити **Cloudflare Tunnel (`cloudflared.exe`)** для Windows.
-            4. Створити команду для запуску тунелю.
-            5. Показати, як запустити Next.js сервер (`npm run dev` або build/start).
-            
-            Важливо: Додай коментарі українською, як це запускати від імені Адміністратора.
-            """,
-            expected_output="Файл setup_server.ps1 з коментарями.",
-            agent=agent
-        )
+# Task 1: Архітектурний план
+arch_plan = Task(
+    description='Вивчити структуру src/ та запропонувати зміни в Firebase (поле haircut_count). Прочитати knowledge/loyalty_logic.md.',
+    expected_output='Технічне завдання для розробника з описом типів даних та шляхів файлів.',
+    agent=architect
+)
 
-    def create_mvp_page(self, agent):
-        return Task(
-            description="""
-            Напиши повний код для файлу `src/app/page.tsx`.
-            
-            Вимоги:
-            1. **UI:** Темна тема, стильний заголовок "Safecut Network".
-            2. **Logic:** - Імпортувати хуки з `wagmi` (useAccount, useReadContract, useWriteContract).
-               - Показати кнопку `ConnectWalletButton` (яку ми створили раніше).
-               - Якщо гаманець підключено: показати адресу користувача і його баланс SFC токенів.
-               - Додати велику кнопку "Спалити 10 SFC (Стрижка)".
-            3. **Config:** Використовуй адресу контракту як константу (залиш плейсхолдер '0x...').
-            """,
-            expected_output="Готовий код page.tsx для Next.js App Router.",
-            agent=agent
-        )
+# Task 2: Написання коду (паралельно з тестом у CrewAI через context)
+coding_task = Task(
+    description='Створити компоненти в src/app/loyalty та логіку в src/lib/loyalty.ts.',
+    expected_output='Фрагменти коду для Firebase Trigger та Frontend компонента.',
+    agent=developer,
+    context=[arch_plan]
+)
+
+# Task 3: Верифікація Firebase
+verification_task = Task(
+    description='Перевірити код розробника на відповідність правилам Firestore та оптимізацію запитів.',
+    expected_output='Список зауважень або "Approved" статус для коду.',
+    agent=tester,
+    context=[coding_task]
+)
+
+# Task 4: Фінальний рапорт (Збирає все докупи)
+final_report = Task(
+    description='Зібрати звіти Архітектора, Девелопера та Тестувальника. Додати бізнес-прогноз щодо окупності 10-ї безкоштовної стрижки.',
+    expected_output='Повний файл loyalty_report.md з усіма кодовими вставками та рекомендаціями.',
+    agent=mentor,
+    context=[arch_plan, coding_task, verification_task],
+    output_file='loyalty_report.md'
+)
