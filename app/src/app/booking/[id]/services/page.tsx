@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
-// Додаємо doc та getDoc для отримання даних клієнта перед записом
 import { addDoc, collection, doc, getDoc } from 'firebase/firestore'; 
 import { db } from '@/lib/firebase'; 
 
@@ -19,7 +18,7 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
   ]);
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'crypto'>('cash');
-  const [isProcessing, setIsProcessing] = useState(false); // Щоб не натиснули двічі
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const toggleService = (serviceId: string) => {
     setServices(services.map(s => {
@@ -48,15 +47,21 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
 
     const { date, time, barberName } = JSON.parse(savedData);
 
-    // 2. ОТРИМУЄМО РЕАЛЬНОГО КЛІЄНТА
-    // Припускаємо, що при логіні ми зберегли ID в localStorage під ключем 'clientId' або 'userId'
-    // Якщо немає - використовуємо 'tester_client01' як фолбек для тестів
-    const currentClientId = localStorage.getItem('clientId') || 'tester_client01';
+    // 2. ОТРИМУЄМО РЕАЛЬНОГО КЛІЄНТА (ВИПРАВЛЕНО)
+    // Використовуємо правильний ключ 'safecut_client_id', який ми задали на сторінці Login
+    const currentClientId = localStorage.getItem('safecut_client_id');
+    
+    // Якщо клієнт не залогінений - відправляємо на вхід
+    if (!currentClientId) {
+        alert("Будь ласка, увійдіть в акаунт, щоб завершити бронювання!");
+        router.push('/login');
+        setIsProcessing(false);
+        return;
+    }
+
     let clientNickname = 'Гість';
 
     try {
-        // Пробуємо дістати нікнейм з бази, щоб зберегти його в замовленні
-        // Це важливо для швидкодії Dashboard барбера
         const clientDoc = await getDoc(doc(db, 'clients', currentClientId));
         if (clientDoc.exists()) {
             const data = clientDoc.data();
@@ -71,9 +76,9 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
         barberId: id,
         barberName: barberName,
         
-        // ВАЖЛИВІ ВИПРАВЛЕННЯ:
-        clientId: currentClientId, // Реальний ID
-        clientNickname: clientNickname, // Реальний нікнейм (snapshot)
+        // ТЕПЕР ТУТ БУДЕ ПРАВИЛЬНИЙ ID (tester_client02)
+        clientId: currentClientId, 
+        clientNickname: clientNickname, 
         
         date: date,
         time: time,

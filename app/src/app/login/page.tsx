@@ -9,7 +9,7 @@ import { Fingerprint, ArrowRight, UserPlus, Loader2 } from 'lucide-react';
 export default function UniversalGate() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'login' | 'register'>('login'); // Режим входу або реєстрації
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   
   const [formData, setFormData] = useState({
     nickname: '',
@@ -30,7 +30,6 @@ export default function UniversalGate() {
       const adminSnap = await getDocs(adminQ);
 
       if (!adminSnap.empty) {
-        // Це Адмін!
         router.push('/admin/hr');
         return;
       }
@@ -43,10 +42,9 @@ export default function UniversalGate() {
       const barberSnap = await getDocs(barberQ);
 
       if (!barberSnap.empty) {
-        // Це Барбер!
         const barberData = barberSnap.docs[0].data();
         localStorage.setItem('barberName', barberData.nickname);
-        router.push('/barber/dashboard'); // Шлях до існуючого дешборду
+        router.push('/barber/dashboard');
         return;
       }
 
@@ -58,8 +56,11 @@ export default function UniversalGate() {
       const clientSnap = await getDocs(clientQ);
 
       if (!clientSnap.empty) {
-        // Це Клієнт!
-        router.push('/'); // На головну сторінку замовлення
+        // 👇 ЗМІНА: Зберігаємо ID клієнта, щоб сторінка лояльності його побачила
+        const clientDoc = clientSnap.docs[0];
+        localStorage.setItem('safecut_client_id', clientDoc.id);
+        
+        router.push('/'); // На головну
         return;
       }
 
@@ -73,13 +74,12 @@ export default function UniversalGate() {
     }
   };
 
-  // --- ЛОГІКА РЕЄСТРАЦІЇ (ТІЛЬКИ КЛІЄНТИ) ---
+  // --- ЛОГІКА РЕЄСТРАЦІЇ ---
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
     try {
-        // Перевірка чи такий вже існує
         const checkQ = query(collection(db, 'clients'), where('nickname', '==', formData.nickname));
         const checkSnap = await getDocs(checkQ);
         
@@ -90,16 +90,20 @@ export default function UniversalGate() {
         }
 
         // Створюємо клієнта
-        await addDoc(collection(db, 'clients'), {
+        const newClientRef = await addDoc(collection(db, 'clients'), {
             nickname: formData.nickname,
             password: formData.password,
             role: 'client',
             createdAt: serverTimestamp(),
-            bonuses: 0 // Стартові бонуси
+            bonuses: 0 
         });
 
-        alert("Вітаємо в клубі! Тепер увійдіть.");
-        setMode('login'); // Перемикаємо назад на вхід
+        // 👇 ЗМІНА: Відразу логінимо після реєстрації
+        localStorage.setItem('safecut_client_id', newClientRef.id);
+
+        alert("Вітаємо в клубі!");
+        // Можна відразу пускати всередину, а не просити логінитись
+        router.push('/'); 
 
     } catch (error) {
         console.error("Reg Error:", error);
@@ -110,12 +114,9 @@ export default function UniversalGate() {
 
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white relative overflow-hidden">
-      
-      {/* Декоративний фон */}
       <div className="absolute top-[-20%] left-[-20%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full pointer-events-none" />
       
       <div className="w-full max-w-sm relative z-10">
-        
         <div className="text-center mb-12">
           <h1 className="text-4xl font-black tracking-tighter uppercase mb-2">
             Safe<span className="text-blue-600">Cut</span>
@@ -127,8 +128,6 @@ export default function UniversalGate() {
         </div>
 
         <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 p-8 rounded-3xl shadow-2xl">
-            
-            {/* Перемикач режимів (Tabs) */}
             <div className="flex bg-zinc-900 p-1 rounded-xl mb-6">
                 <button 
                     onClick={() => setMode('login')}

@@ -1,45 +1,65 @@
 from crewai import Agent
-from crewai_tools import DirectoryReadTool, FileReadTool
+# ВИПРАВЛЕНО: FileWriterTool замість FileWriteTool
+from crewai_tools import DirectoryReadTool, FileReadTool, FileWriterTool 
 
-# Очі для наших агентів
+# Ініціалізація інструментів
 docs_tool = DirectoryReadTool(directory='./src')
-file_tool = FileReadTool()
+file_read_tool = FileReadTool()
+file_writer_tool = FileWriterTool() # ВИПРАВЛЕНО: Правильна ініціалізація класу
 
-# 1. Архітектор (Devstral-2) - логіка та структура
+# 1. Архітектор (Devstral-2)
 architect = Agent(
     role='System Architect',
-    goal='Проектування надійної архітектури лояльності для PWA',
-    backstory='Ти спеціалізуєшся на складних системах. Твоє завдання — розробити зв’язок між Firebase та Next.js для системи 10-ї безкоштовної стрижки.',
-    tools=[docs_tool, file_tool],
+    goal='Спроекувати безпечну міграцію з крипто-лояльності на лічильник стрижок',
+    backstory=(
+        "Ти відповідаєш за структуру даних. Твоє завдання — переконатися, що нова схема "
+        "збереже цілісність бази даних. Ти не пишеш код, ти пишеш правила."
+    ),
+    tools=[docs_tool, file_read_tool], # Тільки читає
     llm='ollama/devstral-2:latest',
     verbose=True
 )
 
-# 2. Девелопер (Qwen 2.5 Coder) - написання коду
+# 2. Девелопер (Qwen 2.5 Coder)
 developer = Agent(
     role='Senior Fullstack Developer',
-    goal='Реалізація логіки лічильника та UI компонентів',
-    backstory='Найшвидші руки на Північному. Ти пишеш чистий TSX/Tailwind код. Працюєш у тандемі з тестувальником.',
-    tools=[docs_tool, file_tool],
+    goal='Переписати модуль лояльності та створити бізнес-логіку',
+    backstory=(
+        "Ти досвідчений React/Next.js розробник. Твоє завдання — ПЕРЕПИСАТИ існуючий файл "
+        "`src/app/loyalty/page.tsx`, видаливши звідти все про крипту. "
+        "Ти використовуєш Tailwind CSS і зберігаєш темний стиль Safecut."
+    ),
+    # ВИПРАВЛЕНО: Використовуємо змінну file_writer_tool
+    tools=[docs_tool, file_read_tool, file_writer_tool], 
     llm='ollama/qwen2.5-coder:32b',
-    verbose=True
+    verbose=True,
+    allow_delegation=False
 )
 
-# 3. Тестувальник (Gemma 3) - експерт Google/Firebase
+# 3. Тестувальник (Gemma 3)
 tester = Agent(
-    role='Firebase & QA Specialist',
-    goal='Верифікація безпеки записів у БД та цілісності Firebase Schema',
-    backstory='Ти виросла в Google, тому знаєш Firestore як свої п’ять пальців. Твоя мета — знайти баги в логіці девелопера.',
-    tools=[docs_tool, file_tool],
+    role='Google Firebase Expert & QA',
+    goal='Знайти вразливості та помилки в коді девелопера і виправити їх',
+    backstory=(
+        "Ти педантичний аудитор коду. Ти перевіряєш, чи правильно працюють хуки, "
+        "чи немає витоку пам\'яті, і чи захищені записи в Firestore. "
+        "Якщо ти бачиш помилку — ти її виправляєш у файлі."
+    ),
+    # ВИПРАВЛЕНО: Використовуємо змінну file_writer_tool
+    tools=[docs_tool, file_read_tool, file_writer_tool], 
     llm='ollama/gemma3:27b',
     verbose=True
 )
 
-# 4. Бізнес Ментор (Mistral Large 123b) - стратегія та звіти
+# 4. Бізнес Ментор (Mistral Large)
 mentor = Agent(
-    role='Strategic Business Mentor',
-    goal='Аналіз Retention та формування фінального рапорту проекту',
-    backstory='Ти бачиш цифри крізь код. Твоє завдання — переконатися, що фіча принесе гроші, і зібрати роботу всіх агентів у звіт.',
+    role='CFO & Strategy Mentor',
+    goal='Фінансова верифікація моделі лояльності',
+    backstory=(
+        "Ти суворий фінансовий директор. Ти оперуєш тільки фактами. "
+        "Твої дані: Стрижка = 500 грн, Борода = 100 грн, Дитяча = 300 грн. "
+        "Ти маєш підтвердити, що 10-та безкоштовна стрижка не розорить бізнес."
+    ),
     llm='ollama/mistral-large:123b',
     verbose=True
 )

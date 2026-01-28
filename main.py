@@ -1,18 +1,27 @@
 from crewai import Crew, Process
 from agents import architect, developer, tester, mentor
-from tasks import arch_plan, coding_task, verification_task, final_report
+from tasks import arch_task, dev_task, qa_task, finance_task
 
-# Збираємо команду
-safecut_crew = Crew(
+# Формуємо команду Safecut
+safecut_team = Crew(
     agents=[architect, developer, tester, mentor],
-    tasks=[arch_plan, coding_task, verification_task, final_report],
-    process=Process.sequential, # Послідовно, щоб Mistral бачив результати всіх
-    verbose=True
+    tasks=[arch_task, dev_task, qa_task, finance_task],
+    process=Process.sequential, # Сувора послідовність: План -> Код -> Тест -> Гроші
+    verbose=True,
+    memory=True # Дозволяє агентам пам'ятати контекст попередніх кроків
 )
 
-# Запуск
 if __name__ == "__main__":
-    print("### Запуск локальної агенції Safecut (M3 Ultra) ###")
-    result = safecut_crew.kickoff()
     print("##################################################")
-    print("Завдання виконано. Перевір loyalty_report.md")
+    print("### ЗАПУСК SAFECUT AI DEV TEAM (M3 ULTRA MODE) ###")
+    print("##################################################")
+    print("⚠️  УВАГА: Агенти мають права на запис файлів.")
+    
+    result = safecut_team.kickoff()
+    
+    print("\n\n##################################################")
+    print("### РОБОТУ ЗАВЕРШЕНО ###")
+    print("1. Перевір оновлений файл: src/app/loyalty/page.tsx")
+    print("2. Перевір новий файл: src/lib/loyalty.ts")
+    print("3. Прочитай фінансовий звіт: loyalty_final_report.md")
+    print("##################################################")
