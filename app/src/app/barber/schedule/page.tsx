@@ -7,16 +7,17 @@ import { Home, Calendar, User, MessageSquare, Loader2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 
-// Типізація даних з бази
+// Типізація даних
 interface Booking {
   id: string;
   clientName: string;
-  services: string[]; // У базі це масив рядків
+  services: string[]; 
   time: string;
+  date: string;
   price: number;
   currency: 'UAH' | 'USDT';
   address?: string;
-  status: 'pending' | 'confirmed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
 }
 
 export default function BarberSchedulePage() {
@@ -25,25 +26,34 @@ export default function BarberSchedulePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Слухаємо колекцію замовлень і сортуємо по часу (09:00 -> 18:00)
-    const q = query(collection(db, 'appointments'), orderBy('time', 'asc'));
+    // ЗАУВАЖЕННЯ: Щоб цей запит працював, треба створити індекс за посиланням у консолі!
+    const q = query(collection(db, 'bookings'), orderBy('date', 'asc'), orderBy('time', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loadedBookings = snapshot.docs.map(doc => {
         const data = doc.data();
+        
         return {
           id: doc.id,
-          clientName: data.clientName,
-          services: data.services || [], // Беремо реальні послуги
+          clientName: data.clientNickname || 'Клієнт', 
+          services: data.services ? data.services.map((s: any) => s.name) : [], 
           time: data.time,
-          price: data.price,
-          currency: data.currency,
+          date: data.date,
+          price: data.finalPrice !== undefined ? data.finalPrice : data.totalPrice,
+          currency: data.paymentMethod === 'crypto' ? 'USDT' : 'UAH',
           address: data.address || null,
           status: data.status
         } as Booking;
       });
       
-      setBookings(loadedBookings);
+      // ВИПРАВЛЕНО: Фільтруємо список. 
+      // Залишаємо тільки ті, що "в процесі" (pending або confirmed).
+      // Completed (виконані) та Cancelled (скасовані) прибираємо з розкладу.
+      const activeBookings = loadedBookings.filter(b => 
+        b.status === 'pending' || b.status === 'confirmed'
+      );
+      
+      setBookings(activeBookings);
       setLoading(false);
     });
 
@@ -55,9 +65,9 @@ export default function BarberSchedulePage() {
       {/* HEADER */}
       <header className="px-6 pt-6 pb-4 bg-black/80 backdrop-blur-md sticky top-0 z-10 border-b border-zinc-900">
         <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">Розклад на сьогодні</h1>
+          <h1 className="text-xl font-bold">Розклад</h1>
           <span className="text-sm text-zinc-500 bg-zinc-900 px-2 py-1 rounded-lg">
-            {bookings.length} клієнтів
+            {bookings.length} активних
           </span>
         </div>
       </header>
@@ -69,8 +79,10 @@ export default function BarberSchedulePage() {
              <Loader2 className="animate-spin text-zinc-600" />
            </div>
         ) : bookings.length === 0 ? (
-           <div className="text-center py-10 text-zinc-500">
-             <p>Розклад порожній 💤</p>
+           <div className="flex flex-col items-center justify-center py-20 text-zinc-500 opacity-60">
+             <Calendar size={48} className="mb-4 text-zinc-700" />
+             <p>Активних записів немає</p>
+             <p className="text-xs mt-2">Час відпочити ☕</p>
            </div>
         ) : (
           bookings.map((booking) => {
@@ -91,7 +103,8 @@ export default function BarberSchedulePage() {
                 <div className="flex items-center gap-4 flex-1">
                   {/* Час */}
                   <div className={`flex flex-col items-center justify-center h-12 w-12 rounded-lg border 
-                    ${booking.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' : 'bg-zinc-800 border-zinc-700 text-white'}
+                    ${booking.status === 'pending' ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500' : 
+                      'bg-zinc-800 border-zinc-700 text-white'}
                   `}>
                     <span className="font-bold text-sm">{booking.time}</span>
                   </div>
@@ -109,9 +122,9 @@ export default function BarberSchedulePage() {
                         {booking.price} {booking.currency}
                       </span>
                       <span>•</span>
-                      {/* Виводимо реальні послуги через кому */}
+                      {/* Виводимо послуги або дату */}
                       <span className="truncate max-w-[120px]">
-                        {booking.services.join(', ')}
+                        {booking.date === new Date().toLocaleDateString('uk-UA') ? 'Сьогодні' : booking.date} • {booking.services.join(', ')}
                       </span>
                     </div>
                   </div>
