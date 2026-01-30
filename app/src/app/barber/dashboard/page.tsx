@@ -11,11 +11,13 @@ interface Appointment {
   id: string;
   clientId: string; 
   totalPrice: number;
+  finalPrice?: number; // Додали для лояльності
+  isBonusCut?: boolean; // Додали маркер бонусу
   paymentMethod: 'cash' | 'crypto';
   time: string;
   date: string; 
   services: any[];
-  status: 'pending' | 'confirmed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'; // Додали completed
   createdAt: any;
 }
 
@@ -49,21 +51,21 @@ const BookingCard = ({
 
   useEffect(() => {
     const fetchClientNickname = async () => {
-      if (req.clientId === 'temp_user_id') {
+      // Якщо ID тимчасовий або відсутній - це Гість
+      if (!req.clientId || req.clientId === 'temp_user_id') {
         setNickname('Гість');
         return;
       }
 
       try {
-        // Шукаємо в колекції 'clients'
+        // 1. Спочатку пробуємо знайти в базі clients
         const userSnap = await getDoc(doc(db, 'clients', req.clientId));
         
         if (userSnap.exists()) {
           const userData = userSnap.data();
-          // Беремо nickname, якщо немає - fullName, якщо немає - ID
           setNickname(userData.nickname || userData.fullName || req.clientId);
         } else {
-          // Якщо не знайшли в базі, показуємо ID
+          // 2. Якщо профілю немає, показуємо ID як фолбек
           setNickname(req.clientId); 
         }
       } catch (e) {
@@ -96,7 +98,7 @@ const BookingCard = ({
         {/* Main Info */}
         <div className="flex justify-between items-start mb-5">
             
-            {/* PRICE + BADGE (Right Side) */}
+            {/* PRICE + BADGE */}
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-2">
                   <span className="text-3xl font-black tracking-tighter text-white leading-none">
@@ -193,23 +195,39 @@ export default function BarberDashboard() {
   }, []);
 
   useEffect(() => {
+    // Слухаємо всі замовлення
     const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loadedData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Appointment[];
       setAppointments(loadedData);
       
       let newStats = { cash: 0, crypto: 0, pending: 0, completed: 0, total: 0 };
+      
       loadedData.forEach(app => {
+        // 1. Рахуємо статуси
         if (app.status === 'pending') newStats.pending++;
-        if (app.status === 'confirmed') newStats.completed++;
-        if (app.status === 'confirmed') {
-           app.paymentMethod === 'crypto' ? newStats.crypto += Number(app.totalPrice) : newStats.cash += Number(app.totalPrice);
+        if (app.status === 'completed') newStats.completed++; // Тільки завершені йдуть в статистику виконаних
+
+        // 2. Рахуємо гроші ТІЛЬКИ за завершені замовлення
+        if (app.status === 'completed') {
+           // Якщо є finalPrice (наприклад, 0 для бонусу), використовуємо її. Інакше - totalPrice
+           // Обов'язково конвертуємо в Number, бо з бази може прийти рядок
+           const actualAmount = app.finalPrice !== undefined ? Number(app.finalPrice) : Number(app.totalPrice);
+           
+           if (app.paymentMethod === 'crypto') {
+             newStats.crypto += actualAmount;
+           } else {
+             newStats.cash += actualAmount;
+           }
         }
       });
+
       newStats.total = newStats.pending + newStats.completed;
       setStats(newStats);
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -220,11 +238,14 @@ export default function BarberDashboard() {
     }
   };
 
+  // Переходимо в чат тільки якщо статус ще pending або confirmed. 
+  // Якщо completed - чат вже не потрібен в списку нових.
   const handleAccept = (orderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(`/barber/chat/${orderId}`);
   };
 
+  // Показуємо тільки 'pending' як нові вхідні запити
   const incomingRequests = appointments.filter(a => a.status === 'pending');
 
   return (
@@ -250,13 +271,16 @@ export default function BarberDashboard() {
         
         {/* STATS */}
         <div className="grid grid-cols-2 gap-2">
+          {/* Баланс */}
           <div className="bg-zinc-900/40 p-3 rounded-xl border border-zinc-800 flex flex-col justify-between h-20">
-             <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Баланс</p>
+             <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Баланс (Cash/USDT)</p>
              <div className="flex justify-between items-end">
                 <span className="text-base font-bold text-white">{stats.cash} ₴</span>
                 <span className="text-sm font-bold text-blue-400">{stats.crypto} T</span>
              </div>
           </div>
+          
+          {/* Черга */}
           <div className="bg-zinc-900/40 p-3 rounded-xl border border-zinc-800 flex flex-col justify-between h-20">
              <div className="flex justify-between">
                 <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Черга</p>

@@ -1,27 +1,50 @@
+import os
 from crewai import Crew, Process
-from agents import architect, developer, tester, mentor
-from tasks import arch_task, dev_task, qa_task, finance_task
+from agents import SafecutAgents
+from tasks import SafecutTasks
 
-# Формуємо команду Safecut
-safecut_team = Crew(
-    agents=[architect, developer, tester, mentor],
-    tasks=[arch_task, dev_task, qa_task, finance_task],
-    process=Process.sequential, # Сувора послідовність: План -> Код -> Тест -> Гроші
+def load_safecut_bible():
+    bible_path = 'safecut_bible.txt'
+    if os.path.exists(bible_path):
+        with open(bible_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    else:
+        return ""
+
+bible_content = load_safecut_bible()
+print(f"Loaded Bible Context ({len(bible_content)} chars)")
+
+agents = SafecutAgents()
+tasks = SafecutTasks(context_rules=bible_content)
+
+# Ініціалізація агентів
+tech = agents.tech_lead()
+market = agents.market_analyst()
+biz = agents.business_strategist()
+socio = agents.sociologist()
+marketer = agents.marketing_director()
+sim = agents.simulation_expert()
+auditor = agents.chief_auditor() # Наш новий шериф
+ceo = agents.ceo()
+
+safecut_crew = Crew(
+    agents=[tech, market, biz, socio, marketer, sim, auditor, ceo],
+    tasks=[
+        tasks.code_analysis_task(tech),
+        tasks.market_research_task(market),
+        tasks.commission_logic_task(biz),
+        tasks.logistics_task(biz), # Strategist робить логістику (DeepSeek добре рахує)
+        tasks.sociology_task(socio),
+        tasks.marketing_task(marketer),
+        tasks.simulation_run_task(sim),
+        tasks.audit_task(auditor), # Аудитор перевіряє всіх
+        tasks.final_strategy_task(ceo) # CEO виправляє помилки
+    ],
+    process=Process.sequential,
     verbose=True,
-    memory=True # Дозволяє агентам пам'ятати контекст попередніх кроків
+    memory=False
 )
 
-if __name__ == "__main__":
-    print("##################################################")
-    print("### ЗАПУСК SAFECUT AI DEV TEAM (M3 ULTRA MODE) ###")
-    print("##################################################")
-    print("⚠️  УВАГА: Агенти мають права на запис файлів.")
-    
-    result = safecut_team.kickoff()
-    
-    print("\n\n##################################################")
-    print("### РОБОТУ ЗАВЕРШЕНО ###")
-    print("1. Перевір оновлений файл: src/app/loyalty/page.tsx")
-    print("2. Перевір новий файл: src/lib/loyalty.ts")
-    print("3. Прочитай фінансовий звіт: loyalty_final_report.md")
-    print("##################################################")
+print("Starting Safecut Agency with Chief Auditor...")
+result = safecut_crew.kickoff()
+print("Done.")

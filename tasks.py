@@ -1,59 +1,101 @@
 from crewai import Task
-from agents import architect, developer, tester, mentor
 
-# Task 1: Проектування (Архітектор)
-arch_task = Task(
-    description=(
-        "1. Проаналізуй `src/lib/firebase.ts` та структуру папок.\n"
-        "2. Сформуй структуру об'єкта `loyalty` для колекції `clients`.\n"
-        "3. Визнач, які саме функції треба створити в `src/lib/loyalty.ts`.\n"
-        "Результат запиши у файл `knowledge/loyalty_specs_v2.md`."
-    ),
-    expected_output="Файл специфікації Markdown.",
-    agent=architect
-)
+class SafecutTasks:
+    def __init__(self, context_rules=""):
+        self.context_rules = context_rules
 
-# Task 2: Кодинг (Девелопер) - ПЕРЕПИСУЄ ФАЙЛ
-dev_task = Task(
-    description=(
-        "На основі специфікації від Архітектора:\n"
-        "1. Створи файл `src/lib/loyalty.ts`: додай функцію `incrementHaircutCount(clientId)`.\n"
-        "2. ПОВНІСТЮ ПЕРЕПИШИ `src/app/loyalty/page.tsx`.\n"
-        "   - Видали згадки про WalletConnect та крипту.\n"
-        "   - Реалізуй UI: Прогрес бар (наприклад, 7/10), історія стрижок.\n"
-        "   - Стиль: Dark theme, Tailwind, мінімалізм.\n"
-        "3. Використовуй `FileWriteTool` для збереження коду."
-    ),
-    expected_output="Готові файли `src/lib/loyalty.ts` та оновлений `page.tsx`.",
-    agent=developer,
-    context=[arch_task]
-)
+    def _add_strict_instruction(self, description, target_file):
+        """Створює ультимативну інструкцію для агента."""
+        return (
+            f"{description}\n\n"
+            f"--- СУВОРИЙ ПРОТОКОЛ ВИКОНАННЯ ---\n"
+            f"1. Твоя робота НЕ ПРИЙМАЄТЬСЯ у вигляді тексту в Final Answer.\n"
+            f"2. ТИ МАЄШ викликати інструмент 'Write Report' для створення файлу: {target_file}.\n"
+            f"3. У Final Answer напиши ТІЛЬКИ: 'Файл {target_file} створено', якщо інструмент спрацював.\n"
+            f"4. ПРАВИЛА ПРОЕКТУ (BIBLE):\n{self.context_rules}"
+        )
 
-# Task 3: QA Loop (Тестувальник) - ФІКСИТЬ БАГИ
-qa_task = Task(
-    description=(
-        "1. Прочитай новостворені файли `src/app/loyalty/page.tsx` та `src/lib/loyalty.ts`.\n"
-        "2. Перевір на типові помилки React (hooks dependency, imports).\n"
-        "3. Перевір безпеку Firebase (чи не пише клієнт сам собі бонуси на клієнті).\n"
-        "4. ЯКЩО ЗНАЙДЕНО ПОМИЛКИ: Використовуй `FileWriteTool`, щоб перезаписати файл з виправленнями.\n"
-        "5. Якщо помилок немає — дай статус 'APPROVED'."
-    ),
-    expected_output="Звіт про тестування та, за потреби, виправлені файли коду.",
-    agent=tester,
-    context=[dev_task]
-)
+    def code_analysis_task(self, agent):
+        file = "reports/1_tech_stealth_audit.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Проаналізуй код. Перевір Stealth та Loyalty логіку через Read File.", file),
+            expected_output=f"Технічне підтвердження від інструменту про створення {file}.",
+            agent=agent
+        )
 
-# Task 4: Фінансова перевірка (Ментор)
-finance_task = Task(
-    description=(
-        "Проведи фінансовий аудит нової системи лояльності:\n"
-        "1. Використовуй ціни: Чоловіча стрижка - 500 грн, Борода - 100 грн, Дитяча - 300 грн.\n"
-        "2. Розрахуй LTV (Lifetime Value) клієнта за 10 візитів.\n"
-        "3. Розрахуй відсоток втрат на 10-й безкоштовній стрижці.\n"
-        "4. Підготуй фінальний звіт `loyalty_final_report.md` з вердиктом: чи вигідна ця модель."
-    ),
-    expected_output="Файл `loyalty_final_report.md` з розрахунками.",
-    agent=mentor,
-    context=[arch_task, dev_task, qa_task],
-    output_file='loyalty_final_report.md' # Автоматично збереже звіт
-)
+    def market_research_task(self, agent):
+        file = "reports/2_market_north_district.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Порівняй салонну модель та Safecut для району Північний.", file),
+            expected_output=f"Маркетинговий звіт, фізично записаний у {file}.",
+            agent=agent
+        )
+
+    def commission_logic_task(self, agent):
+        file = "reports/3_commission_logic.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Розрахуй комісію (UAH/USDT). Обґрунтуй математично.", file),
+            expected_output=f"Фінансова модель, записана у {file}.",
+            agent=agent
+        )
+
+    def logistics_task(self, agent):
+        file = "reports/4_logistics_walking.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Склади таймінг: Тільки пішки, 10-15 хв радіус, дезінфекція.", file),
+            expected_output=f"Логістичний план у файлі {file}.",
+            agent=agent
+        )
+
+    def sociology_task(self, agent):
+        file = "reports/5_sociology_home_visit.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Опиши психологію клієнта (страх ТЦК, анонімність).", file),
+            expected_output=f"Профайл клієнта, збережений у {file}.",
+            agent=agent
+        )
+
+    def marketing_task(self, agent):
+        file = "reports/6_marketing_stealth.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Розроби стратегію 'Свій серед своїх' для закритих чатів ЖК.", file),
+            expected_output=f"Стратегія маркетингу у файлі {file}.",
+            agent=agent
+        )
+
+    def simulation_run_task(self, agent):
+        file = "reports/7_simulation_results.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Проведи симуляцію: 500 грн/стрижка, 5 клієнтів/день. Порівняй з салоном.", file),
+            expected_output=f"Результати симуляції у файлі {file}.",
+            agent=agent
+        )
+
+    def audit_task(self, agent):
+        file = "reports/8_AUDIT_REPORT.md"
+        return Task(
+            description=(
+                "1. Використай 'List Directory' для папки 'reports/'.\n"
+                "2. Якщо якогось із файлів 1-7 НЕМАЄ — ПРОВАЛ. Не вигадуй вміст.\n"
+                "3. Якщо файли є — перевір їх на відповідність правилам: ТІЛЬКИ ПІШКИ, ТІЛЬКИ ПІВНІЧНИЙ.\n"
+                f"4. Запиши результат аудиту в {file}."
+            ),
+            expected_output=f"Звіт аудитора про цілісність системи у {file}.",
+            agent=agent
+        )
+
+    def final_strategy_task(self, agent):
+        file = "reports/9_FINAL_STRATEGY.md"
+        return Task(
+            description=self._add_strict_instruction(
+                "Синтезуй Майстер-План на основі всіх попередніх звітів.", file),
+            expected_output=f"Фінальний документ Safecut у {file}.",
+            agent=agent
+        )

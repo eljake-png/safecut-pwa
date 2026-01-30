@@ -1,0 +1,46 @@
+PROJECT: Safecut
+TYPE: Virtual Barbershop (PWA)
+LOCATION: Rivne, Ukraine.
+
+*** CRITICAL GEOGRAPHY RULES ***
+ALLOWED DISTRICTS ONLY:
+1. Північний (Pivnichnyi) - High density residential.
+2. Ювілейний (Yuvileinyi) - High density residential.
+3. Щасливе (Shchaslyve) - New elite residential complex.
+FORBIDDEN LOCATIONS: Center, Chervona, Voskresentsi, Boyarka, etc.
+
+*** BUSINESS MODEL ***
+SERVICE: Barbershop at home.
+LOGISTICS: Walking ONLY (15 min radius). NO cars, NO mopeds.
+FORBIDDEN TERMS: Delivery, Courier, Parcel, Food.
+STEALTH ARCHITECTURE: The app must protect client anonymity (military context).
+
+*** MARKETING & POLITICS ***
+FORBIDDEN PLATFORMS: VKontakte, OK.ru, Yandex (Illegal/Blocked in Ukraine).
+ALLOWED PLATFORMS: Instagram, TikTok, Google Ads, Telegram.
+
+*** REAL MARKET DATA (RIVNE) ***
+COMPETITORS (DO NOT INVENT OTHERS):
+1. Gentle Razor (Premium/Classic)
+2. Revolt (Modern/Urban)
+3. Frisor (Franchise/Mass market)
+4. Goliath (Brutal/Masculine)
+5. Blade (Local player)
+
+PRICING BENCHMARK (APPROXIMATE):
+- Average Haircut: 400-600 UAH
+- Beard: 150-250 UAH
+
+*** TARGET AUDIENCE ***
+Profile: Men 25-50, "Home Lockdown" due to military conscription (TCC) fears.
+Key Need: Safety, Anonymity, Service at home.
+
+MECHANIC: Client books -> Barber walks to client (10-15 min radius).
+CURRENCY: UAH for cash and USDT for crypto payments.
+FORBIDDEN TERMS: Delivery, Courier, Package, Food, Moped.
+
+*** FINANCIAL REALITY ***
+Target CAC: < 200 UAH (~$5).
+Current Pricing: Haircut 500 UAH.
+Math Rule: 10,000 USD marketing budget for 200 clients is FAILURE. That is $50 per client.
+We need organic growth and cheap leads.
