@@ -6,22 +6,22 @@ import { Home, Calendar, User, Check, X, Banknote, Diamond, Coffee, Loader2, Clo
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, getDoc } from 'firebase/firestore';
 
-// Типи даних
+// --- ВИПРАВЛЕНО ТУТ ---
 interface Appointment {
   id: string;
   clientId: string; 
   totalPrice: number;
-  finalPrice?: number; // Додали для лояльності
-  isBonusCut?: boolean; // Додали маркер бонусу
+  finalPrice?: number;
+  isBonusCut?: boolean;
   paymentMethod: 'cash' | 'crypto';
   time: string;
   date: string; 
   services: any[];
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'; // Додали completed
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   createdAt: any;
+  isSettled?: boolean; // <--- ДОДАЛИ ЦЕ ПОЛЕ, ЩОБ CURSOR НЕ СВАРИВСЯ
 }
 
-// Хелпер для дати
 const getDateLabel = (dateStr: string) => {
   if (!dateStr) return '';
   const [day, month, year] = dateStr.split('.').map(Number);
@@ -37,7 +37,6 @@ const getDateLabel = (dateStr: string) => {
   return `${day < 10 ? '0' + day : day}.${month < 10 ? '0' + month : month}`;
 };
 
-// --- КОМПОНЕНТ КАРТКИ ---
 const BookingCard = ({ 
   req, 
   onAccept, 
@@ -51,21 +50,17 @@ const BookingCard = ({
 
   useEffect(() => {
     const fetchClientNickname = async () => {
-      // Якщо ID тимчасовий або відсутній - це Гість
       if (!req.clientId || req.clientId === 'temp_user_id') {
         setNickname('Гість');
         return;
       }
 
       try {
-        // 1. Спочатку пробуємо знайти в базі clients
         const userSnap = await getDoc(doc(db, 'clients', req.clientId));
-        
         if (userSnap.exists()) {
           const userData = userSnap.data();
           setNickname(userData.nickname || userData.fullName || req.clientId);
         } else {
-          // 2. Якщо профілю немає, показуємо ID як фолбек
           setNickname(req.clientId); 
         }
       } catch (e) {
@@ -78,12 +73,9 @@ const BookingCard = ({
 
   return (
     <div className="w-full relative group animate-in fade-in slide-in-from-bottom-2 duration-300 mb-3">
-      {/* Glow Effect */}
       <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-900 to-purple-900 rounded-2xl opacity-0 group-hover:opacity-50 transition duration-500 blur-md"></div>
       
       <div className="relative w-full bg-black rounded-xl p-4 border border-zinc-800 shadow-xl">
-        
-        {/* Header */}
         <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
@@ -95,10 +87,7 @@ const BookingCard = ({
             <span className="text-[10px] text-zinc-600 font-mono">#{req.id.slice(0, 5).toUpperCase()}</span>
         </div>
 
-        {/* Main Info */}
         <div className="flex justify-between items-start mb-5">
-            
-            {/* PRICE + BADGE */}
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-2">
                   <span className="text-3xl font-black tracking-tighter text-white leading-none">
@@ -117,7 +106,6 @@ const BookingCard = ({
               </div>
             </div>
 
-            {/* CLIENT INFO */}
             <div className="text-right">
               <h3 className="font-bold text-base text-white truncate max-w-[140px]">
                 @{nickname}
@@ -130,7 +118,6 @@ const BookingCard = ({
             </div>
         </div>
 
-        {/* TIME & DATE */}
         <div className="bg-zinc-900/30 rounded-xl p-3 mb-4 border border-zinc-800/50 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
                  <div className="bg-zinc-800/80 p-2 rounded-lg text-zinc-400">
@@ -157,7 +144,6 @@ const BookingCard = ({
             </div>
         </div>
 
-        {/* Buttons */}
         <div className="grid grid-cols-2 gap-3">
             <button 
                 onClick={(e) => onSkip(req.id, e)}
@@ -175,13 +161,11 @@ const BookingCard = ({
               <span>ПРИЙНЯТИ</span>
             </button>
         </div>
-
       </div>
     </div>
   );
 };
 
-// --- ГОЛОВНИЙ КОМПОНЕНТ ---
 export default function BarberDashboard() {
   const router = useRouter();
   const [barberName, setBarberName] = useState('Майстер');
@@ -195,7 +179,6 @@ export default function BarberDashboard() {
   }, []);
 
   useEffect(() => {
-    // Слухаємо всі замовлення
     const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -205,14 +188,12 @@ export default function BarberDashboard() {
       let newStats = { cash: 0, crypto: 0, pending: 0, completed: 0, total: 0 };
       
       loadedData.forEach(app => {
-        // 1. Рахуємо статуси
         if (app.status === 'pending') newStats.pending++;
-        if (app.status === 'completed') newStats.completed++; // Тільки завершені йдуть в статистику виконаних
+        if (app.status === 'completed') newStats.completed++;
 
-        // 2. Рахуємо гроші ТІЛЬКИ за завершені замовлення
-        if (app.status === 'completed') {
-           // Якщо є finalPrice (наприклад, 0 для бонусу), використовуємо її. Інакше - totalPrice
-           // Обов'язково конвертуємо в Number, бо з бази може прийти рядок
+        // --- ВИПРАВЛЕНО ТУТ ---
+        // Рахуємо тільки ті, що Completed і ще НЕ розраховані адміном (!app.isSettled)
+        if (app.status === 'completed' && !app.isSettled) {
            const actualAmount = app.finalPrice !== undefined ? Number(app.finalPrice) : Number(app.totalPrice);
            
            if (app.paymentMethod === 'crypto') {
@@ -238,19 +219,15 @@ export default function BarberDashboard() {
     }
   };
 
-  // Переходимо в чат тільки якщо статус ще pending або confirmed. 
-  // Якщо completed - чат вже не потрібен в списку нових.
   const handleAccept = (orderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     router.push(`/barber/chat/${orderId}`);
   };
 
-  // Показуємо тільки 'pending' як нові вхідні запити
   const incomingRequests = appointments.filter(a => a.status === 'pending');
 
   return (
     <div className="min-h-screen bg-black text-white pb-24 font-sans">
-      {/* Header */}
       <header className="px-5 py-4 flex justify-between items-center bg-black/80 backdrop-blur-md sticky top-0 z-20 border-b border-zinc-900">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-zinc-800 rounded-full flex items-center justify-center font-bold text-sm border border-zinc-700 text-zinc-300">
@@ -268,10 +245,7 @@ export default function BarberDashboard() {
       </header>
 
       <div className="px-4 space-y-3 pt-4">
-        
-        {/* STATS */}
         <div className="grid grid-cols-2 gap-2">
-          {/* Баланс */}
           <div className="bg-zinc-900/40 p-3 rounded-xl border border-zinc-800 flex flex-col justify-between h-20">
              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Баланс (Cash/USDT)</p>
              <div className="flex justify-between items-end">
@@ -279,8 +253,6 @@ export default function BarberDashboard() {
                 <span className="text-sm font-bold text-blue-400">{stats.crypto} T</span>
              </div>
           </div>
-          
-          {/* Черга */}
           <div className="bg-zinc-900/40 p-3 rounded-xl border border-zinc-800 flex flex-col justify-between h-20">
              <div className="flex justify-between">
                 <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Черга</p>
@@ -293,7 +265,6 @@ export default function BarberDashboard() {
           </div>
         </div>
 
-        {/* LABEL */}
         <div className="flex items-center justify-between mt-4 ml-1">
             <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
                 Вхідні запити
@@ -328,7 +299,6 @@ export default function BarberDashboard() {
         )}
       </div>
 
-      {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-xl border-t border-zinc-800 p-2 pb-6 flex justify-around items-center z-50">
         <button onClick={() => router.push('/barber/dashboard')} className="p-2 flex flex-col items-center gap-1 text-white w-16 transition-transform active:scale-95">
           <Home size={22} className="text-white" />

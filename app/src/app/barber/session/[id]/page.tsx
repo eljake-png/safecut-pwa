@@ -4,8 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { Diamond, Banknote, Gift } from 'lucide-react'; // Додав іконку подарунка
-// Імпортуємо логіку лояльності (шлях може відрізнятись залежно від структури, припускаю @/lib/loyalty)
+import { Diamond, Banknote, Gift } from 'lucide-react';
 import { getLoyaltyData, incrementHaircutCount } from '@/lib/loyalty'; 
 
 export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,7 +39,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
           if (clientId && clientId !== 'temp_user_id') {
              try {
-               // А. Отримуємо нікнейм
                const clientRef = doc(db, 'clients', clientId);
                const clientSnap = await getDoc(clientRef);
                
@@ -52,16 +50,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                   finalName = clientId;
                }
 
-               // Б. Перевіряємо ЛОЯЛЬНІСТЬ
-               // Дізнаємось, скільки стрижок було ДО цієї
                const loyalty = await getLoyaltyData(clientId);
                const count = loyalty.haircutsCount || 0;
-               // Поточна стрижка - це (count + 1)
                const thisHaircutNum = count + 1;
                
                setCurrentHaircutNum(thisHaircutNum);
 
-               // Якщо це 10-та, 20-та і т.д. - вона безкоштовна
                if (thisHaircutNum > 0 && thisHaircutNum % 10 === 0) {
                  setIsFreeCut(true);
                }
@@ -102,24 +96,21 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const handleFinish = async () => {
     if (!booking) return;
 
-    // Формуємо повідомлення для підтвердження залежно від оплати
     const confirmMsg = isFreeCut 
       ? 'УВАГА: Ця стрижка БЕЗКОШТОВНА (Bonus). Завершити?' 
       : 'Стрижку завершено? Оплату отримано?';
 
     if (confirm(confirmMsg)) {
       try {
-        // 1. Оновлюємо статус замовлення
-        // Важливо: записуємо фінальну ціну (0 якщо бонус, або повну)
         await updateDoc(doc(db, 'bookings', id), {
             status: 'completed',
             completedAt: serverTimestamp(),
             durationSeconds: duration,
-            finalPrice: isFreeCut ? 0 : booking.totalPrice, // Зберігаємо факт, що ціна була 0
-            isBonusCut: isFreeCut // Маркер для історії
+            finalPrice: isFreeCut ? 0 : booking.totalPrice,
+            isBonusCut: isFreeCut,
+            isSettled: false // <--- ТЕПЕР ТУТ Є КОМА ПЕРЕД ЦИМ РЯДКОМ (у списку вище)
         });
 
-        // 2. Інкрементуємо лічильник стрижок клієнта
         if (booking.clientId && booking.clientId !== 'temp_user_id') {
            await incrementHaircutCount(booking.clientId);
         }
@@ -161,7 +152,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           </p>
           <div className="flex items-center gap-2 mt-1">
              <span className="text-[10px] text-zinc-500 font-mono">#{id.slice(0, 6)}</span>
-             {/* Відображаємо номер стрижки */}
              <span className="text-[10px] bg-zinc-900 border border-zinc-800 text-blue-400 px-1.5 py-0.5 rounded">
                 Стрижка #{currentHaircutNum}
              </span>
@@ -173,10 +163,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
-      {/* BODY */}
       <div className="flex-1 p-6 flex flex-col gap-6">
         
-        {/* BONUS ALERT */}
         {isFreeCut && (
            <div className="bg-gradient-to-r from-blue-900/40 to-cyan-900/40 border border-blue-500/50 p-4 rounded-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4">
               <div className="bg-blue-600 p-3 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.6)] animate-pulse">
@@ -208,7 +196,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
-      {/* FOOTER CONTROLS */}
       <div className="p-6 pb-10 grid grid-cols-4 gap-4 bg-zinc-900 border-t border-zinc-800">
         <button 
           onClick={handlePanic}
@@ -228,7 +215,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         >
           <span>ЗАВЕРШИТИ</span>
           
-          {/* Динамічна ціна */}
           {isFreeCut ? (
              <span className="bg-white/20 px-3 py-1 rounded text-sm font-mono font-black animate-pulse">
                 FREE
