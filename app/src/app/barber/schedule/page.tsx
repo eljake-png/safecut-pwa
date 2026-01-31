@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Home, Calendar, User, MessageSquare, Loader2 } from 'lucide-react';
+// Додав Settings в імпорт
+import { Home, Calendar, MessageSquare, Loader2, Settings } from 'lucide-react';
 // Firebase
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
@@ -46,9 +47,6 @@ export default function BarberSchedulePage() {
         } as Booking;
       });
       
-      // ВИПРАВЛЕНО: Фільтруємо список. 
-      // Залишаємо тільки ті, що "в процесі" (pending або confirmed).
-      // Completed (виконані) та Cancelled (скасовані) прибираємо з розкладу.
       const activeBookings = loadedBookings.filter(b => 
         b.status === 'pending' || b.status === 'confirmed'
       );
@@ -122,7 +120,6 @@ export default function BarberSchedulePage() {
                         {booking.price} {booking.currency}
                       </span>
                       <span>•</span>
-                      {/* Виводимо послуги або дату */}
                       <span className="truncate max-w-[120px]">
                         {booking.date === new Date().toLocaleDateString('uk-UA') ? 'Сьогодні' : booking.date} • {booking.services.join(', ')}
                       </span>
@@ -154,15 +151,20 @@ export default function BarberSchedulePage() {
         </button>
         
         <button 
+          // Це активна сторінка (Розклад), тому кнопка біла і неактивна для кліку
           className="p-2 flex flex-col items-center gap-1 text-white w-16 transition-transform active:scale-90"
         >
           <Calendar size={24} className="text-white" />
           <span className="text-[10px] font-medium text-white">Розклад</span>
         </button>
 
-        <button className="p-2 flex flex-col items-center gap-1 text-zinc-500 hover:text-white transition-colors w-16 active:scale-90">
-          <User size={24} />
-          <span className="text-[10px] font-medium">Профіль</span>
+        {/* КНОПКА НАЛАШТУВАНЬ ГРАФІКУ */}
+        <button 
+          onClick={() => router.push('/barber/schedule/setup')}
+          className="p-2 flex flex-col items-center gap-1 text-zinc-500 hover:text-white transition-colors w-16 active:scale-90"
+        >
+          <Settings size={24} />
+          <span className="text-[10px] font-medium">Налаштування</span>
         </button>
       </div>
     </div>
