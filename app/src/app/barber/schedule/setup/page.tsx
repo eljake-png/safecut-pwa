@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Save, Loader2, Power, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Save, Loader2, Power, AlertTriangle, CalendarPlus, X } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
@@ -68,6 +68,7 @@ export default function ScheduleSetupPage() {
   const [barberId, setBarberId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Стан для тижневого графіку
   const [schedule, setSchedule] = useState<WeeklySchedule>({
     '1': { active: true, start: '10:00', end: '19:00' }, 
     '2': { active: true, start: '10:00', end: '19:00' },
@@ -78,26 +79,24 @@ export default function ScheduleSetupPage() {
     '0': { active: false, start: '11:00', end: '17:00' },
   });
 
-  // --- ЛОГІКА ЗАВАНТАЖЕННЯ (Fix: Self-Healing) ---
+  // НОВИЙ СТАН: Масив дат-винятків (наприклад ['05.02.2026', '14.02.2026'])
+  const [daysOff, setDaysOff] = useState<string[]>([]);
+  const [newDayOffDate, setNewDayOffDate] = useState('');
+  const [addingDayOff, setAddingDayOff] = useState(false);
+
   useEffect(() => {
     const initPage = async () => {
       let bid = localStorage.getItem('safecut_barber_id');
       const bName = localStorage.getItem('barberName');
 
-      // СЦЕНАРІЙ 1: ID немає, але є Ім'я (типова ситуація після логіну)
       if (!bid && bName) {
         try {
-          // Шукаємо барбера за нікнеймом
           const q = query(collection(db, 'barbers'), where('nickname', '==', bName));
           const snap = await getDocs(q);
-          
           if (!snap.empty) {
-            // Знайшли! Відновлюємо ID
             bid = snap.docs[0].id;
             localStorage.setItem('safecut_barber_id', bid);
-            console.log("Session recovered via nickname:", bid);
           } else {
-             // Спробуємо пошукати за полем 'name' (раптом структура інша)
              const q2 = query(collection(db, 'barbers'), where('name', '==', bName));
              const snap2 = await getDocs(q2);
              if (!snap2.empty) {
@@ -105,19 +104,15 @@ export default function ScheduleSetupPage() {
                 localStorage.setItem('safecut_barber_id', bid);
              }
           }
-        } catch (err) {
-          console.error("Auto-recovery failed:", err);
-        }
+        } catch (err) { console.error(err); }
       }
 
-      // СЦЕНАРІЙ 2: Все ще немає ID -> Викидаємо
       if (!bid) {
         alert("Помилка авторизації. ID не знайдено.");
         router.push('/');
         return;
       }
 
-      // СЦЕНАРІЙ 3: ID є -> Вантажимо графік
       setBarberId(bid);
       try {
         const docRef = doc(db, 'barbers', bid);
@@ -125,23 +120,19 @@ export default function ScheduleSetupPage() {
         
         if (docSnap.exists()) {
              const data = docSnap.data();
-             if (data.schedule) {
-                setSchedule(data.schedule);
-             }
+             if (data.schedule) setSchedule(data.schedule);
+             // Завантажуємо існуючі вихідні
+             if (data.daysOff) setDaysOff(data.daysOff);
         } else {
              console.error("ID exists but document missing");
         }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
+      } catch (e) { console.error(e); } finally { setLoading(false); }
     };
-
     initPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
 
+  // --- ЛОГІКА ТИЖНЕВОГО ГРАФІКУ ---
   const handleToggleDay = (dayIndex: string) => {
     setErrorMsg(null);
     setSchedule(prev => ({
@@ -158,6 +149,58 @@ export default function ScheduleSetupPage() {
     }));
   };
 
+  // --- ЛОГІКА "ОДИН ВИХІДНИЙ" (З ПЕРЕВІРКОЮ КОНФЛІКТІВ) ---
+  const handleAddDayOff = async () => {
+    if (!newDayOffDate || !barberId) return;
+    setAddingDayOff(true);
+    setErrorMsg(null);
+
+    try {
+        // 1. Форматуємо дату з input (YYYY-MM-DD) у наш формат (DD.MM.YYYY)
+        const [year, month, day] = newDayOffDate.split('-');
+        const formattedDate = `${day}.${month}.${year}`;
+
+        // 2. Перевірка: чи вже є в списку
+        if (daysOff.includes(formattedDate)) {
+            setErrorMsg("Ця дата вже є у списку вихідних.");
+            setAddingDayOff(false);
+            return;
+        }
+
+        // 3. CONFLICT GUARD: Перевіряємо чи є замовлення на цю дату
+        const q = query(
+            collection(db, 'bookings'),
+            where('barberId', '==', barberId),
+            where('date', '==', formattedDate),
+            where('status', 'in', ['pending', 'confirmed'])
+        );
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+            // КОНФЛІКТ ЗНАЙДЕНО!
+            setErrorMsg(`Неможливо взяти вихідний ${formattedDate}. У вас є ${snap.size} активних замовлень на цей день.`);
+            setAddingDayOff(false);
+            return;
+        }
+
+        // 4. Якщо все ок - додаємо
+        setDaysOff(prev => [...prev, formattedDate]);
+        setNewDayOffDate(''); // Очистити інпут
+
+    } catch (e) {
+        console.error(e);
+        setErrorMsg("Помилка при перевірці дати.");
+    } finally {
+        setAddingDayOff(false);
+    }
+  };
+
+  const handleRemoveDayOff = (dateToRemove: string) => {
+      setDaysOff(prev => prev.filter(d => d !== dateToRemove));
+  };
+
+
+  // --- ГЛОБАЛЬНА ПЕРЕВІРКА ПРИ ЗБЕРЕЖЕННІ ---
   const checkConflicts = async (newSchedule: WeeklySchedule): Promise<string | null> => {
     if (!barberId) return "Barber ID not found";
 
@@ -171,9 +214,18 @@ export default function ScheduleSetupPage() {
     const bookings = snapshot.docs.map(d => d.data());
 
     for (const booking of bookings) {
+      // Якщо ця дата у списку "Extra Days Off" - ми вже перевірили це при додаванні, 
+      // АЛЕ якщо користувач додав вихідний, а потім хтось встиг забронювати (малоймовірно, але все ж)
+      // Краще перевірятиму тут теж.
+      if (daysOff.includes(booking.date)) {
+         return `Конфлікт! Ви додали ${booking.date} як вихідний, але там з'явився запис (${booking.time}).`;
+      }
+
+      // Стандартна перевірка тижневого графіку (пропускаємо, якщо це Extra Day Off)
+      if (daysOff.includes(booking.date)) continue;
+
       const [day, month, year] = booking.date.split('.').map(Number);
       const bookingDate = new Date(year, month - 1, day);
-      
       if (bookingDate < new Date(new Date().setHours(0,0,0,0))) continue;
 
       const dayOfWeek = bookingDate.getDay().toString();
@@ -188,7 +240,7 @@ export default function ScheduleSetupPage() {
       const newEndHour = parseInt(rule.end.split(':')[0]);
 
       if (bookingHour < newStartHour || bookingHour >= newEndHour) {
-         return `Конфлікт! ${booking.date} у вас запис о ${booking.time}. Цей час випадає з нового графіку (${rule.start}-${rule.end}).`;
+         return `Конфлікт! ${booking.date} у вас запис о ${booking.time}. Цей час випадає з нового графіку.`;
       }
     }
 
@@ -212,6 +264,7 @@ export default function ScheduleSetupPage() {
 
       await updateDoc(doc(db, 'barbers', barberId), { 
         schedule: schedule,
+        daysOff: daysOff, // Зберігаємо масив вихідних
         updatedAt: new Date()
       });
       
@@ -244,7 +297,9 @@ export default function ScheduleSetupPage() {
       )}
 
       <div className="flex-1 overflow-y-auto p-3 pb-32">
-        <div className="space-y-3">
+        {/* WEEKLY SCHEDULE */}
+        <div className="space-y-3 mb-8">
+          <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1 mb-2">Тижневий шаблон</h2>
           {DAYS_ORDER.map((dayIndex) => {
             const day = schedule[dayIndex];
             const startTime = parseInt(day.start.split(':')[0]);
@@ -275,6 +330,45 @@ export default function ScheduleSetupPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* ONE DAY OFF WIDGET */}
+        <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-4">
+            <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <CalendarPlus size={14} /> Додаткові вихідні
+            </h2>
+            
+            <div className="flex gap-2 mb-4">
+                <input 
+                    type="date" 
+                    value={newDayOffDate}
+                    min={new Date().toISOString().split('T')[0]} // Не можна вибрати минуле
+                    onChange={(e) => setNewDayOffDate(e.target.value)}
+                    className="flex-1 bg-black border border-zinc-700 rounded-xl px-3 py-3 text-white text-sm focus:outline-none focus:border-blue-500"
+                />
+                <button 
+                    onClick={handleAddDayOff}
+                    disabled={!newDayOffDate || addingDayOff}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-4 rounded-xl disabled:opacity-50 transition-colors"
+                >
+                    {addingDayOff ? <Loader2 className="animate-spin" size={18} /> : '+'}
+                </button>
+            </div>
+
+            {daysOff.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                    {daysOff.map(date => (
+                        <div key={date} className="bg-red-900/20 border border-red-500/30 text-red-200 px-3 py-1.5 rounded-lg text-sm font-mono flex items-center gap-2">
+                            <span>{date}</span>
+                            <button onClick={() => handleRemoveDayOff(date)} className="text-red-400 hover:text-white">
+                                <X size={14} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-xs text-zinc-600 italic">Немає запланованих додаткових вихідних</p>
+            )}
         </div>
       </div>
 

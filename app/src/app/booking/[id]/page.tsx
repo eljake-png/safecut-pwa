@@ -7,9 +7,17 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Loader2, CalendarX } from 'lucide-react';
 
-// Дефолтний графік, якщо у барбера ще немає налаштувань (аварійний режим)
+// Дефолтний графік
 const DEFAULT_SCHEDULE = {
   start: '10:00', end: '19:00', active: true
+};
+
+// Хелпер для форматування дати у DD.MM.YYYY (щоб збігалося з базою)
+const formatDateForDb = (date: Date) => {
+  const d = date.getDate().toString().padStart(2, '0');
+  const m = (date.getMonth() + 1).toString().padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}.${m}.${y}`;
 };
 
 export default function BookingPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,8 +25,9 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const router = useRouter();
   
   const [barberName, setBarberName] = useState('Майстер');
-  // В цей стейт ми завантажимо ВЕСЬ об'єкт schedule з бази
   const [schedule, setSchedule] = useState<any>(null); 
+  // НОВЕ: Стейт для списку додаткових вихідних
+  const [daysOff, setDaysOff] = useState<string[]>([]);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
   
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -28,7 +37,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null);
   const [isDayOff, setIsDayOff] = useState(false);
 
-  // 1. ЗАВАНТАЖУЄМО БАРБЕРА ТА ЙОГО ГРАФІК
+  // 1. ЗАВАНТАЖУЄМО БАРБЕРА (Графік + DaysOff)
   useEffect(() => {
     const fetchBarber = async () => {
       try {
@@ -37,9 +46,9 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
         if (docSnap.exists()) {
           const data = docSnap.data();
           setBarberName(data.fullName || data.nickname || 'Майстер');
-          if (data.schedule) {
-             setSchedule(data.schedule);
-          }
+          if (data.schedule) setSchedule(data.schedule);
+          // НОВЕ: Завантажуємо вихідні
+          if (data.daysOff) setDaysOff(data.daysOff);
         }
       } catch (e) {
         console.error("Error fetching barber", e);
@@ -54,12 +63,14 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const dateString = selectedDate.toLocaleDateString('uk-UA'); 
+        // Використовуємо наш хелпер для стабільності
+        const dateString = formatDateForDb(selectedDate); 
+        
         const q = query(
           collection(db, 'bookings'),
           where('barberId', '==', id),
           where('date', '==', dateString),
-          where('status', 'in', ['pending', 'confirmed']) // Ігноруємо скасовані
+          where('status', 'in', ['pending', 'confirmed'])
         );
         const querySnapshot = await getDocs(q);
         const bookedTimes = querySnapshot.docs.map(doc => doc.data().time);
@@ -73,38 +84,39 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
     setSelectedTimeSlot(null);
   }, [selectedDate, id]);
 
-  // 3. ГЕНЕРАЦІЯ СЛОТІВ НА ОСНОВІ ГРАФІКУ
+  // 3. ГЕНЕРАЦІЯ СЛОТІВ
   useEffect(() => {
     if (loadingSchedule) return;
 
-    // 1. Визначаємо день тижня (0-6)
-    const dayOfWeek = selectedDate.getDay().toString(); // '0' = Нд, '1' = Пн
-    
-    // 2. Беремо правило для цього дня. Якщо графіка немає - фолбек
+    // 1. Перевірка на конкретний вихідний (Extra Day Off)
+    const dateStr = formatDateForDb(selectedDate);
+    if (daysOff.includes(dateStr)) {
+        setIsDayOff(true);
+        setTimeSlots([]);
+        return;
+    }
+
+    // 2. Перевірка тижневого графіку
+    const dayOfWeek = selectedDate.getDay().toString();
     const dayRule = schedule ? schedule[dayOfWeek] : DEFAULT_SCHEDULE;
 
-    // 3. Якщо день вимкнений (active: false) -> Вихідний
     if (dayRule && !dayRule.active) {
        setIsDayOff(true);
        setTimeSlots([]);
        return;
     }
 
+    // Якщо все ок - працюємо
     setIsDayOff(false);
 
-    // 4. Парсимо години (Start / End)
-    // Якщо графіка немає взагалі (старий барбер), беремо 10-19
     const startHour = dayRule ? parseInt(dayRule.start.split(':')[0]) : 10;
     const endHour = dayRule ? parseInt(dayRule.end.split(':')[0]) : 19;
 
-    // 5. Генеруємо масив годин (наприклад [10, 11, ... 18])
-    // endHour не включаємо (якщо працює до 19:00, остання стрижка о 18:00)
     const generatedSlots = [];
     for (let h = startHour; h < endHour; h++) {
        generatedSlots.push(`${h}:00`);
     }
 
-    // 6. Фільтруємо (Зайнято + Минулий час)
     const now = new Date();
     const isToday = selectedDate.toDateString() === now.toDateString();
     const currentHour = now.getHours();
@@ -123,7 +135,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
 
     setTimeSlots(finalSlots);
 
-  }, [selectedDate, schedule, loadingSchedule, takenSlots]);
+  }, [selectedDate, schedule, loadingSchedule, takenSlots, daysOff]); // Додали daysOff в залежності
 
   const daysOfWeek = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
   
@@ -137,7 +149,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
     const draftData = {
         barberId: id,
         barberName: barberName,
-        date: selectedDate.toLocaleDateString('uk-UA'), 
+        date: formatDateForDb(selectedDate), // Використовуємо той самий формат
         time: selectedTimeSlot,
         timestamp: selectedDate.toISOString() 
     };
@@ -146,10 +158,14 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
     router.push(`/booking/${id}/services`);
   };
 
+  function handleDateClick(date: Date) {
+    setSelectedDate(date);
+    setSelectedTimeSlot(null);
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-white font-sans flex flex-col items-center pb-24">
       
-      {/* Header */}
       <header className="w-full max-w-md p-6 flex items-center justify-between sticky top-0 bg-zinc-50/90 dark:bg-black/90 backdrop-blur-md z-10">
         <Link href="/">
           <button className="text-sm font-medium text-zinc-500 hover:text-black dark:hover:text-white transition-colors">
@@ -169,30 +185,34 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
         <div>
           <h2 className="text-xs font-bold text-zinc-500 mb-4 uppercase tracking-widest ml-1">Обери дату</h2>
           
-          {/* ЗМІНИ ТУТ: прибрав overflow-x-auto, додав w-full і менший gap */}
           <div className="flex w-full gap-1.5 justify-between">
             {currentWeekDates.map((date, index) => {
               const isSelected = selectedDate.toDateString() === date.toDateString();
               
               const dayIdx = date.getDay().toString();
-              const isDayOffInSchedule = schedule && schedule[dayIdx] && !schedule[dayIdx].active;
+              const dateStr = formatDateForDb(date);
+
+              // Перевіряємо: АБО це вихідний по тижню, АБО це конкретна дата-виняток
+              const isDayOffInSchedule = (schedule && schedule[dayIdx] && !schedule[dayIdx].active);
+              const isSpecificDayOff = daysOff.includes(dateStr);
+              
+              const isAnyDayOff = isDayOffInSchedule || isSpecificDayOff;
 
               return (
                 <div 
                   key={index} 
                   onClick={() => handleDateClick(date)}
-                  // ЗМІНИ ТУТ: додав flex-1 (щоб розтягувалось) і прибрав min-w
                   className={`flex-1 flex flex-col items-center justify-center h-20 rounded-2xl cursor-pointer transition-all duration-200 border relative overflow-hidden
                     ${isSelected 
                       ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-900/40' 
-                      : isDayOffInSchedule
+                      : isAnyDayOff
                         ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 opacity-50'
                         : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400'}`}
                 >
                   <span className="text-[10px] opacity-60 mb-0.5 uppercase">{daysOfWeek[date.getDay()]}</span>
                   <span className="text-lg font-bold leading-none">{date.getDate()}</span>
                   
-                  {isDayOffInSchedule && !isSelected && (
+                  {isAnyDayOff && !isSelected && (
                      <div className="absolute inset-0 flex items-center justify-center bg-black/5 dark:bg-black/40">
                         <div className="w-6 h-0.5 bg-zinc-400/50 rotate-45"></div>
                      </div>
@@ -244,7 +264,6 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
         </div>
       </main>
 
-      {/* Action Button */}
       <div className="fixed bottom-8 left-0 w-full px-6 flex justify-center pointer-events-none z-20">
         <button 
           onClick={handleNext}
@@ -256,9 +275,4 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
       </div>
     </div>
   );
-
-  function handleDateClick(date: Date) {
-    setSelectedDate(date);
-    setSelectedTimeSlot(null); // Скидаємо вибір при зміні дати
-  }
 }
