@@ -47,11 +47,9 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
 
     const { date, time, barberName } = JSON.parse(savedData);
 
-    // 2. ОТРИМУЄМО РЕАЛЬНОГО КЛІЄНТА (ВИПРАВЛЕНО)
-    // Використовуємо правильний ключ 'safecut_client_id', який ми задали на сторінці Login
+    // 2. ОТРИМУЄМО РЕАЛЬНОГО КЛІЄНТА
     const currentClientId = localStorage.getItem('safecut_client_id');
     
-    // Якщо клієнт не залогінений - відправляємо на вхід
     if (!currentClientId) {
         alert("Будь ласка, увійдіть в акаунт, щоб завершити бронювання!");
         router.push('/login');
@@ -75,11 +73,8 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
     const orderData = {
         barberId: id,
         barberName: barberName,
-        
-        // ТЕПЕР ТУТ БУДЕ ПРАВИЛЬНИЙ ID (tester_client02)
         clientId: currentClientId, 
         clientNickname: clientNickname, 
-        
         date: date,
         time: time,
         services: services.filter(s => s.selected),
@@ -97,6 +92,40 @@ export default function ServicesPage({ params }: { params: Promise<{ id: string 
         localStorage.removeItem('safecut_draft');
 
         console.log("Order created with ID: ", docRef.id);
+
+        // --- 5. PUSH NOTIFICATION LOGIC (START) ---
+        // Відправляємо пуш барберу, не чекаючи відповіді (fire and forget)
+        const sendPushToBarber = async () => {
+            try {
+                // Отримуємо дані барбера, щоб знайти його токен
+                const barberSnap = await getDoc(doc(db, 'barbers', id));
+                if (barberSnap.exists()) {
+                    const barberData = barberSnap.data();
+                    const token = barberData.fcmToken;
+
+                    if (token) {
+                        await fetch('/api/send-push', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                token: token,
+                                title: 'Нове замовлення! 💈',
+                                body: `${clientNickname} записався на ${time} (${date})`,
+                                link: '/barber/dashboard'
+                            })
+                        });
+                    }
+                }
+            } catch (pushError) {
+                console.error("Failed to send push notification:", pushError);
+                // Ми не блокуємо інтерфейс, якщо пуш не пройшов
+            }
+        };
+        
+        // Запускаємо відправку пуша паралельно
+        sendPushToBarber();
+        // --- PUSH NOTIFICATION LOGIC (END) ---
+
 
         if (paymentMethod === 'crypto') {
           router.push(`/booking/${id}/crypto?amount=${totalPrice}&orderId=${docRef.id}`);

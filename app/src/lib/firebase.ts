@@ -1,10 +1,12 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+// Додаємо імпорт для сповіщень
+import { getMessaging } from "firebase/messaging"; 
 
 // Твій конфіг з FlutterFlow проекту
 const firebaseConfig = {
-  apiKey: "AIzaSyAjGp0SSYrqzzX9dJK28crni0b6Yo6l4mA",
+  apiKey: "AIzaSyDNDth-epTMA5uitoOTJ8eu7RUAO69n8D4",
   authDomain: "safecut-eff32.firebaseapp.com",
   projectId: "safecut-eff32",
   storageBucket: "safecut-eff32.firebasestorage.app",
@@ -15,10 +17,20 @@ const firebaseConfig = {
 
 // Singleton патерн:
 // Перевіряємо, чи Firebase вже запущено. Якщо так — беремо існуючий, ні — запускаємо новий.
-// Це рятує від помилок при перезавантаженні Next.js
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-export { db, auth };
+// Ініціалізація Messaging (Тільки на стороні клієнта/браузера)
+let messaging: any = null;
+
+if (typeof window !== "undefined") {
+  try {
+    messaging = getMessaging(app);
+  } catch (err) {
+    console.error("Firebase Messaging failed to initialize (this is normal on server-side):", err);
+  }
+}
+
+export { db, auth, messaging };

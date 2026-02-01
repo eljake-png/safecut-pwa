@@ -2,11 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Home, Calendar, User, Check, X, Banknote, Diamond, Coffee, Loader2, Clock } from 'lucide-react';
+// Додали Bell та BellOff
+import { Home, Calendar, User, Check, X, Banknote, Diamond, Coffee, Loader2, Clock, Bell, BellOff } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, getDoc } from 'firebase/firestore';
+// Додали імпорт хука
+import useFcmToken from '@/hooks/useFcmToken';
 
-// --- ВИПРАВЛЕНО ТУТ ---
 interface Appointment {
   id: string;
   clientId: string; 
@@ -19,7 +21,7 @@ interface Appointment {
   services: any[];
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   createdAt: any;
-  isSettled?: boolean; // <--- ДОДАЛИ ЦЕ ПОЛЕ, ЩОБ CURSOR НЕ СВАРИВСЯ
+  isSettled?: boolean;
 }
 
 const getDateLabel = (dateStr: string) => {
@@ -172,11 +174,21 @@ export default function BarberDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ cash: 0, crypto: 0, pending: 0, completed: 0, total: 0 });
+  
+  // Додаємо стейт для ID барбера
+  const [barberId, setBarberId] = useState<string | null>(null);
 
   useEffect(() => {
     const storedName = localStorage.getItem('barberName');
     if (storedName) setBarberName(storedName);
+    
+    // Отримуємо ID для пушів
+    const bid = localStorage.getItem('safecut_barber_id');
+    if (bid) setBarberId(bid);
   }, []);
+
+  // Підключаємо хук пушів
+  const { permission, requestPermission } = useFcmToken(barberId, 'barbers');
 
   useEffect(() => {
     const q = query(collection(db, 'bookings'), orderBy('createdAt', 'desc'));
@@ -191,8 +203,7 @@ export default function BarberDashboard() {
         if (app.status === 'pending') newStats.pending++;
         if (app.status === 'completed') newStats.completed++;
 
-        // --- ВИПРАВЛЕНО ТУТ ---
-        // Рахуємо тільки ті, що Completed і ще НЕ розраховані адміном (!app.isSettled)
+        // Рахуємо тільки ті, що Completed і ще НЕ розраховані адміном
         if (app.status === 'completed' && !app.isSettled) {
            const actualAmount = app.finalPrice !== undefined ? Number(app.finalPrice) : Number(app.totalPrice);
            
@@ -238,9 +249,31 @@ export default function BarberDashboard() {
             <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Online • Shift Started</p>
           </div>
         </div>
-        <div className="px-2.5 py-1 bg-green-950/30 border border-green-900/50 rounded-full flex items-center gap-2">
-          <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
-          <span className="text-[9px] text-green-400 font-bold tracking-wide">ACTIVE</span>
+        
+        {/* ПРАВА ЧАСТИНА: Кнопка PUSH + Статус */}
+        <div className="flex items-center gap-2">
+            
+            {/* КНОПКА СПОВІЩЕНЬ */}
+            {permission === 'default' && (
+            <button 
+                onClick={requestPermission}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center gap-1 animate-pulse"
+            >
+                <Bell size={12} />
+                PUSH
+            </button>
+            )}
+            {permission === 'denied' && (
+            <div className="px-2 py-1 bg-red-900/50 text-red-400 text-[10px] font-bold rounded-full flex items-center gap-1">
+                <BellOff size={12} />
+            </div>
+            )}
+
+            {/* Статус Active */}
+            <div className="px-2.5 py-1 bg-green-950/30 border border-green-900/50 rounded-full flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
+                <span className="text-[9px] text-green-400 font-bold tracking-wide">ACTIVE</span>
+            </div>
         </div>
       </header>
 
